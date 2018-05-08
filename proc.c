@@ -101,7 +101,6 @@ found:
   // Leave room for trap frame.
   sp -= sizeof *p->tf;
   p->tf = (struct trapframe*)sp;
-
   // Set up new context to start executing at forkret,
   // which returns to trapret.
   sp -= 4;
@@ -211,7 +210,7 @@ fork(void)
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
   pid = np->pid;
-
+  createSwapFile(np);
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
