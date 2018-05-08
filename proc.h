@@ -52,6 +52,7 @@ struct proc {
 
   //Swap file. must initiate with create swap file
   struct file *swapFile;      //page file
+  int pagesOffset[MAX_TOTAL_PAGES]; //-2 not used , -1 in ram , 0+ offset in swap
 };
 
 // Process memory is laid out contiguously, low addresses first:
