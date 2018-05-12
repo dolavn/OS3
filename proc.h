@@ -73,6 +73,7 @@ void add_page(struct proc*,uint*);
 void remove_page(uint*);
 void printbits(uint*);
 void copy_page_arr(struct proc*,struct proc*);
+void copy_swap_file(struct proc*,struct proc*);
 
 
 int get_page_to_swap();

@@ -103,3 +103,10 @@ void copy_page_arr(struct proc* dst,struct proc* src){
     dst->pages[i] = src->pages[i];
   }
 }
+
+void copy_swap_file(struct proc* src, struct proc* dest) {
+  int file_size = src.file_size;
+  char buf[file_size];
+  readFromSwapFile(src, buf, 0, file_size);
+  writeToSwapFile(dest, buf, 0, file_size);
+}
