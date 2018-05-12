@@ -22,14 +22,17 @@ void printbits(uint* addr){
 
 int find_page_ind(struct proc* p,uint* page){
   for(int i=0;i<MAX_TOTAL_PAGES;++i){
-    if(p->pages[i] == page){return i;}
+    if(p->pages[i].pte == page){return i;}
   }
   return -1;
 }
 
 int init_page_meta(struct proc* p){
   for(int i=0;i<MAX_TOTAL_PAGES;++i){
-    p->pages[i] = (uint*)(FREE_SLOT);
+    p->pages[i].pte = (uint*)(FREE_SLOT);
+    p->pages[i].taken = 0;
+    p->pages[i].offset = 0;
+    p->pages[i].on_phys = 0;
   }
   return 0;
 }
@@ -37,7 +40,7 @@ int init_page_meta(struct proc* p){
 int find_free_slot(){
   struct proc* p = myproc();
   for(int i=0;i<MAX_TOTAL_PAGES;++i){
-    if(p->pages[i]==(uint*)(FREE_SLOT)){return i;}
+    if(!p->pages[i].taken){return i;}
   }
   panic("no free slots");
 }
@@ -45,9 +48,12 @@ int find_free_slot(){
 int swap_to_file(uint* page){
   struct proc* p = myproc();
   int ind = find_page_ind(p,page);
+  int offset = OFFSET(ind);
   char* addr = (char*)(PTE_ADDR(*page));
-  writeToSwapFile(p,addr,OFFSET(ind),PGSIZE);
-  p->pages[ind] = page;
+  writeToSwapFile(p,addr,offset,PGSIZE);
+  p->pages[ind].pte = page;
+  p->pages[ind].offset = offset;
+  p->pages[ind].on_phys = 0;
   (*page) &= ~PTE_P;
   (*page) &= PTE_PG;
   return 1;
@@ -57,15 +63,14 @@ int swap_from_file(uint* page){
   struct proc* p = myproc();
   int ind = -1;
   for(int i=0;i<MAX_TOTAL_PAGES && ind==-1;++i){
-    if(page==(uint*)(p->pages[i])){ind = i;}
+    if(page==(uint*)(p->pages[i].pte)){ind = i;}
   }
-  if(ind==-1){
-    panic("page not found!");
-  }
+  if(ind==-1){panic("page not found!");}
   char* addr = (char*)(PTE_ADDR(*page));
   readFromSwapFile(p,addr,OFFSET(ind),PGSIZE);
   (*page) &= PTE_P;
   (*page) &= ~PTE_PG;
+  p->pages[ind].on_phys = 1;
   return 1;
 }
 
@@ -73,20 +78,28 @@ int get_page_to_swap(){
   return 0;
   struct proc* p = myproc();
   for(int i=0;i<MAX_TOTAL_PAGES;++i){
-    if(*p->pages[i] & PTE_P & ~PTE_PG){return i;}
+    if(p->pages[i].on_phys){return i;}
   }
   return -1;
 }
 
 void add_page(struct proc* p,uint* page){
   int ind = find_free_slot();
-  p->pages[ind] = page;
+  p->pages[ind].pte = page;
+  p->pages[ind].taken = 1;
+  p->pages[ind].on_phys = 1;
   cprintf("ind:%d\n",ind);
-  printbits(p->pages[ind]);
+  printbits(p->pages[ind].pte);
 }
 
 void remove_page(uint* page){
   struct proc* p = myproc();
   int ind = find_page_ind(p,page);
-  p->pages[ind] = (uint*)(FREE_SLOT);
+  p->pages[ind].taken = 0;
+}
+
+void copy_page_arr(struct proc* dst,struct proc* src){
+  for(int i=0;i<MAX_TOTAL_PAGES;++i){
+    dst->pages[i] = src->pages[i];
+  }
 }

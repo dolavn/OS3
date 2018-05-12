@@ -233,7 +233,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       if(p->num_of_pages >= MAX_PHYS_PAGES){ //find page to swap
         int ind = get_page_to_swap();
         if(ind==-1){panic("swap");}
-        pde_t* swap_page = (pde_t*)(p->pages[ind]);
+        pde_t* swap_page = (pde_t*)(p->pages[ind].pte);
         printbits(swap_page);
         swap_to_file(swap_page);
         uint pa = PTE_ADDR(*swap_page);

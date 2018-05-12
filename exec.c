@@ -40,6 +40,9 @@ exec(char *path, char **argv)
 
   // Load program into memory.
   sz = 0;
+  init_page_meta(curproc);
+  removeSwapFile(curproc);
+  createSwapFile(curproc);
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
     if(readi(ip, (char*)&ph, off, sizeof(ph)) != sizeof(ph))
       goto bad;
