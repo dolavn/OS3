@@ -45,7 +45,7 @@ trap(struct trapframe *tf)
       exit();
     return;
   }
-
+  
   switch(tf->trapno){
   case T_IRQ0 + IRQ_TIMER:
     if(cpuid() == 0){
@@ -86,14 +86,18 @@ trap(struct trapframe *tf)
               tf->trapno, cpuid(), tf->eip, rcr2());
       panic("trap");
     }
-    // In user space, assume process misbehaved.
-    cprintf("pid %d %s: trap %d err %d on cpu %d "
-            "eip 0x%x addr 0x%x--kill proc\n",
-            myproc()->pid, myproc()->name, tf->trapno,
-            tf->err, cpuid(), tf->eip, rcr2());
-    myproc()->killed = 1;
+    if(tf->trapno == T_PGFLT){
+      handle_pgflt();
+    }
+    if(myproc()->killed){
+      // In user space, assume process misbehaved.
+      cprintf("pid %d %s: trap %d err %d on cpu %d "
+              "eip 0x%x addr 0x%x--kill proc\n",
+              myproc()->pid, myproc()->name, tf->trapno,
+              tf->err, cpuid(), tf->eip, rcr2());
+      myproc()->killed = 1;
+    }
   }
-
   // Force process exit if it has been killed and is in user space.
   // (If it is still executing in the kernel, let it keep running
   // until it gets to the regular system call return.)

@@ -61,6 +61,7 @@ struct proc {
   struct file *swapFile;      //page file
   int file_size;              //file size
   struct page_meta pages[MAX_TOTAL_PAGES]; //-2 not used , -1 in ram , 0+ offset in swap
+  int offsets[MAX_SWAP_FILE_SZ];
   uint num_of_pages;
 };
 
@@ -68,13 +69,17 @@ int init_page_meta(struct proc*);
 int find_free_slot();
 int find_page_ind(struct proc*,uint*);
 int swap_to_file(uint*);
+void free_page(struct proc*);
+
 int swap_from_file(uint*);
+int get_offset(struct proc*);
+void free_offset(struct proc*,int);
 void add_page(struct proc*,uint*);
 void remove_page(uint*);
 void printbits(uint*);
 void copy_page_arr(struct proc*,struct proc*);
 void copy_swap_file(struct proc*,struct proc*);
-
+void handle_pgflt();
 
 int get_page_to_swap();
 

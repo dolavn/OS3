@@ -211,6 +211,9 @@ fork(void)
   pid = np->pid;
   createSwapFile(np);
   np->file_size = 0;
+  if(curproc->swapFile){
+    copy_swap_file(np,curproc);
+  }
   copy_page_arr(np,curproc);
   acquire(&ptable.lock);
 
