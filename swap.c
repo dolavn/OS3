@@ -90,3 +90,10 @@ void remove_page(uint* page){
   int ind = find_page_ind(p,page);
   p->pages[ind] = (uint*)(FREE_SLOT);
 }
+
+void copy_swap_file(struct proc* src, struct proc* dest) {
+  int file_size = src.file_size;
+  char buf[file_size];
+  readFromSwapFile(src, buf, 0, file_size);
+  writeToSwapFile(dest, buf, 0, file_size);
+}
