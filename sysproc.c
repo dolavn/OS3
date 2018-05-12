@@ -54,7 +54,6 @@ sys_sbrk(void)
 {
   int addr;
   int n;
-
   if(argint(0, &n) < 0)
     return -1;
   addr = myproc()->sz;

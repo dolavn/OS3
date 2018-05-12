@@ -62,7 +62,6 @@ mappages(pde_t *pgdir, void *va, uint size, uint pa, int perm)
 {
   char *a, *last;
   pte_t *pte;
-
   a = (char*)PGROUNDDOWN((uint)va);
   last = (char*)PGROUNDDOWN(((uint)va) + size - 1);
   for(;;){
@@ -120,7 +119,6 @@ setupkvm(void)
 {
   pde_t *pgdir;
   struct kmap *k;
-
   if((pgdir = (pde_t*)kalloc()) == 0)
     return 0;
   memset(pgdir, 0, PGSIZE);
@@ -223,14 +221,27 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
   char *mem;
   uint a;
-
+  struct proc* p = myproc();
   if(newsz >= KERNBASE)
     return 0;
   if(newsz < oldsz)
     return oldsz;
-
   a = PGROUNDUP(oldsz);
   for(; a < newsz; a += PGSIZE){
+    if(pgdir == p->pgdir){
+      p->num_of_pages++;
+      if(p->num_of_pages >= MAX_PHYS_PAGES){ //find page to swap
+        int ind = get_page_to_swap();
+        if(ind==-1){panic("swap");}
+        pde_t* swap_page = (pde_t*)(p->pages[ind]);
+        printbits(swap_page);
+        swap_to_file(swap_page);
+        uint pa = PTE_ADDR(*swap_page);
+        if(pa==0){panic("kfree");}
+        char* v = P2V(pa);
+        kfree(v);
+      }
+    }
     mem = kalloc();
     if(mem == 0){
       cprintf("allocuvm out of memory\n");
@@ -243,6 +254,12 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       deallocuvm(pgdir, newsz, oldsz);
       kfree(mem);
       return 0;
+    }
+    if(p->pgdir == pgdir){
+      pte_t* pg_entry = walkpgdir(pgdir,(const char*)(a),0);
+      if(find_page_ind(p,pg_entry)==-1){
+        add_page(p,pg_entry);
+      }
     }
   }
   return newsz;
@@ -257,12 +274,15 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
   pte_t *pte;
   uint a, pa;
-
+  struct proc* p = myproc();
   if(newsz >= oldsz)
     return oldsz;
 
   a = PGROUNDUP(newsz);
   for(; a  < oldsz; a += PGSIZE){
+    if(pgdir == p->pgdir){
+      p->num_of_pages--;
+    }
     pte = walkpgdir(pgdir, (char*)a, 0);
     if(!pte)
       a = PGADDR(PDX(a) + 1, 0, 0) - PGSIZE;

@@ -52,8 +52,21 @@ struct proc {
 
   //Swap file. must initiate with create swap file
   struct file *swapFile;      //page file
-  int pagesOffset[MAX_TOTAL_PAGES]; //-2 not used , -1 in ram , 0+ offset in swap
+  uint* pages[MAX_TOTAL_PAGES]; //-2 not used , -1 in ram , 0+ offset in swap
+  uint num_of_pages;
 };
+
+int init_page_meta(struct proc*);
+int find_free_slot();
+int find_page_ind(struct proc*,uint*);
+int swap_to_file(uint*);
+int swap_from_file(uint*);
+void add_page(struct proc*,uint*);
+void remove_page(uint*);
+void printbits(uint*);
+
+
+int get_page_to_swap();
 
 // Process memory is laid out contiguously, low addresses first:
 //   text

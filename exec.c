@@ -67,7 +67,6 @@ exec(char *path, char **argv)
     goto bad;
   clearpteu(pgdir, (char*)(sz - 2*PGSIZE));
   sp = sz;
-
   // Push argument strings, prepare rest of stack in ustack.
   for(argc = 0; argv[argc]; argc++) {
     if(argc >= MAXARG)
@@ -78,7 +77,6 @@ exec(char *path, char **argv)
     ustack[3+argc] = sp;
   }
   ustack[3+argc] = 0;
-
   ustack[0] = 0xffffffff;  // fake return PC
   ustack[1] = argc;
   ustack[2] = sp - (argc+1)*4;  // argv pointer
@@ -99,6 +97,7 @@ exec(char *path, char **argv)
   curproc->sz = sz;
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;
+  curproc->num_of_pages = curproc->sz/PGSIZE;
   switchuvm(curproc);
   freevm(oldpgdir);
   return 0;
