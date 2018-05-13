@@ -434,7 +434,9 @@ void handle_pgflt(){
     return;
   }
   uint page_start = PGROUNDDOWN((uint)(addr));
-  free_page(p);
+  if(p->phys_pages==MAX_PHYS_PAGES){
+    free_page(p);
+  }
   char* mem = kalloc();
   if(mem == 0){
     cprintf("mapping out of memory\n");
@@ -446,7 +448,7 @@ void handle_pgflt(){
     return;
   }
   swap_from_file(page);
-  //cprintf("value:%d\n",*addr);
+  printbits((uint*)(addr));
 }
 
 //PAGEBREAK!

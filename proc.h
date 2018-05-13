@@ -93,6 +93,10 @@ void print_proc_data(struct proc*);
 void updatePagesCounter();
 #endif
 
+#ifdef LAPA
+uint num_of_ones(int);
+#endif
+
 int get_page_to_swap();
 
 // Process memory is laid out contiguously, low addresses first:
