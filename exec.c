@@ -42,7 +42,6 @@ exec(char *path, char **argv)
   init_page_meta(curproc);
   removeSwapFile(curproc);
   createSwapFile(curproc);
-  cprintf("size:%d\n",curproc->num_of_pages);
   oldpgdir = curproc->pgdir;
   curproc->pgdir = pgdir;
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
