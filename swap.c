@@ -49,6 +49,7 @@ int find_page_ind(struct proc* p,uint* page){
 
 int init_page_meta(struct proc* p){
   p->num_of_pages = 0;
+  p->phys_pages = 0;
   for(int i=0;i<MAX_TOTAL_PAGES;++i){
     p->pages[i].pte = (uint*)(FREE_SLOT);
     p->pages[i].taken = 0;
@@ -74,14 +75,17 @@ int swap_to_file(uint* page){
   int ind = find_page_ind(p,page);
   int offset = get_offset(p);
   char* pa = (char*)(PTE_ADDR(*page));
-  char* va = (char*)(P2V((
-      uint)(pa)));
+  char* va = (char*)(P2V((uint)(pa)));
   writeToSwapFile(p,va,offset,PGSIZE);
   p->pages[ind].pte = page;
   p->pages[ind].offset = offset;
   p->pages[ind].on_phys = 0;
+  if(offset+PGSIZE>p->file_size){
+    p->file_size = offset+PGSIZE;
+  }
   (*page) &= ~PTE_P;
   (*page) |= PTE_PG;
+  p->phys_pages--;
   return 1;
 }
 
@@ -95,12 +99,13 @@ int swap_from_file(uint* page){
   (*page) |= PTE_P;
   (*page) &= ~PTE_PG;
   p->pages[ind].on_phys = 1;
+  p->phys_pages++;
   return 1;
 }
 
 int get_page_to_swap(){
   struct proc* p = myproc();
-  for(int i=0;i<MAX_TOTAL_PAGES;++i){
+  for(int i=6;i<MAX_TOTAL_PAGES;++i){
     if(p->pages[i].on_phys){return i;}
   }
   return -1;
@@ -112,6 +117,8 @@ void add_page(struct proc* p,uint* page){
   p->pages[ind].taken = 1;
   p->pages[ind].on_phys = 1;
   p->num_of_pages++;
+  p->phys_pages++;
+  cprintf("phys:%d\ntotal:%d\n",p->phys_pages,p->num_of_pages);
 }
 
 void remove_page(uint* page){

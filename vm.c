@@ -216,7 +216,14 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 
 void free_page(struct proc* p){
   int ind = get_page_to_swap();
-  if(ind==-1){panic("swap");}
+  if(ind==-1){
+      cprintf("phys pages:%d\n",p->phys_pages);
+      for(int i=0;i<MAX_TOTAL_PAGES;++i){
+        cprintf("%d",p->pages[i].on_phys);
+      }
+      cprintf("\n");
+      panic("swap");
+  }
   pde_t* swap_page = (pde_t*)(p->pages[ind].pte);
   swap_to_file(swap_page);
   uint pa = PTE_ADDR(*swap_page);
@@ -241,7 +248,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   a = PGROUNDUP(oldsz);
   for(; a < newsz; a += PGSIZE){
     if(pgdir == p->pgdir){
-      if(p->num_of_pages >= MAX_PHYS_PAGES){ //find page to swap
+      if(p->phys_pages >= MAX_PHYS_PAGES){ //find page to swap
         free_page(p);
       }
     }
@@ -285,6 +292,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   for(; a  < oldsz; a += PGSIZE){
     if(pgdir == p->pgdir){
       p->num_of_pages--;
+      panic("not working yet");
     }
     pte = walkpgdir(pgdir, (char*)a, 0);
     if(!pte)
@@ -410,8 +418,8 @@ void handle_pgflt(){
   char* addr = (char*)(rcr2());
   struct proc* p = myproc();
   pte_t* page = walkpgdir(p->pgdir,addr,0);
-  printbits(page);
-  cprintf("addr:%d\n",(uint)(addr));
+  cprintf("addr:%p\n",(addr));
+  cprintf("eip:%p\n",p->tf->eip);
   if((uint)addr>KERNBASE){
     panic("kernel memory not present");
   }
@@ -424,7 +432,6 @@ void handle_pgflt(){
     return;
   }
   uint page_start = PGROUNDDOWN((uint)(addr));
-  cprintf("page_start:%d\n",page_start);
   free_page(p);
   char* mem = kalloc();
   if(mem == 0){
@@ -436,6 +443,8 @@ void handle_pgflt(){
     kfree(mem);
     return;
   }
+  swap_from_file(page);
+  //cprintf("value:%d\n",*addr);
 }
 
 //PAGEBREAK!

@@ -110,6 +110,7 @@ found:
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
   p->num_of_pages = 0;
+  p->phys_pages = 0;
   init_page_meta(p);
   return p;
 }
@@ -249,7 +250,7 @@ exit(void)
   iput(curproc->cwd);
   end_op();
   curproc->cwd = 0;
-
+  removeSwapFile(curproc);
   acquire(&ptable.lock);
 
   // Parent might be sleeping in wait().
@@ -297,6 +298,7 @@ wait(void)
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
+        
         p->state = UNUSED;
         release(&ptable.lock);
         return pid;

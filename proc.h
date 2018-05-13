@@ -60,9 +60,10 @@ struct proc {
   //Swap file. must initiate with create swap file
   struct file *swapFile;      //page file
   int file_size;              //file size
-  struct page_meta pages[MAX_TOTAL_PAGES]; //-2 not used , -1 in ram , 0+ offset in swap
+  struct page_meta pages[MAX_TOTAL_PAGES];
   int offsets[MAX_SWAP_FILE_SZ];
   uint num_of_pages;
+  uint phys_pages;
 };
 
 int init_page_meta(struct proc*);

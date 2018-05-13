@@ -2,15 +2,22 @@
 #include "user.h"
 #include "fcntl.h"
 
-#define SZ 150
+#define SZ 120
 
 int main(int argc, char** argv){
     int** arr = (int**)(sbrk(SZ*sizeof(int*)));
     for(int i=0;i<SZ;++i){
       arr[i] = (int*)(sbrk(SZ*sizeof(int)));
-      printf(2,"addr:%p\n",arr[i]);
+      for(int j=0;j<SZ;++j){
+        arr[i][j] = i+j;
+      }
     }
-    printf(2,"%p\n",arr);
+    for(int i=0;i<SZ;++i){
+      for(int j=0;j<SZ;++j){
+        printf(2,"%d ",arr[i][j]);
+      }
+      printf(2,"\n");
+    }
     exit();
 }
 
