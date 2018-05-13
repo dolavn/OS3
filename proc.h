@@ -86,7 +86,7 @@ void copy_swap_file(struct proc*,struct proc*);
 void handle_pgflt();
 
 #if defined(NFUA) || defined(LAPA)
-void resetPagesCounter();
+void updatePagesCounter();
 #endif
 
 int get_page_to_swap();

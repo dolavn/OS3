@@ -298,7 +298,7 @@ wait(void)
         p->parent = 0;
         p->name[0] = 0;
         p->killed = 0;
-        
+
         p->state = UNUSED;
         release(&ptable.lock);
         return pid;
@@ -581,19 +581,16 @@ select_page () {
 }
 
 void
-resetPagesCounter() {
+updatePagesCounter() {
   struct proc* p = myproc();
   struct page_meta* pages = p->pages;
   struct page_meta currPage;
+  uint adder = 1 << (sizeof(uint)*8);
   for (int i=0; i<MAX_TOTAL_PAGES; i++) {
     currPage = pages[i];
-    if (currPage.taken && currPage.on_phys && (*(currPage.pte) & PTE_A)) {
-#ifdef NFUA
-      currPage.counter = 0;
-#endif
-#ifdef LAPA
-      currPage.counter = -1;
-#endif
+    if (currPage.taken) { //&& currPage.on_phys
+      currPage.counter >>= 1;
+      if ((*(currPage.pte) & PTE_A)) currPage.counter |= adder;
     }
   }
 }

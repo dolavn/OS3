@@ -111,7 +111,7 @@ int swap_from_file(uint* page){
 
 int get_page_to_swap(){
   struct proc* p = myproc();
-  for(int i=6;i<MAX_TOTAL_PAGES;++i){
+  for(int i=6;i<MAX_TOTAL_PAGES;++i){ // TODO i=6
     if(p->pages[i].on_phys){return i;}
   }
   return -1;
