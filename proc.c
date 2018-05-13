@@ -38,10 +38,10 @@ struct cpu*
 mycpu(void)
 {
   int apicid, i;
-  
+
   if(readeflags()&FL_IF)
     panic("mycpu called with interrupts enabled\n");
-  
+
   apicid = lapicid();
   // APIC IDs are not guaranteed to be contiguous. Maybe we should have
   // a reverse map, or reserve a register to store &cpus[i].
@@ -123,7 +123,7 @@ userinit(void)
   extern char _binary_initcode_start[], _binary_initcode_size[];
 
   p = allocproc();
-  
+
   initproc = p;
   if((p->pgdir = setupkvm()) == 0)
     panic("userinit: out of memory?");
@@ -278,7 +278,7 @@ wait(void)
   struct proc *p;
   int havekids, pid;
   struct proc *curproc = myproc();
-  
+
   acquire(&ptable.lock);
   for(;;){
     // Scan through table looking for exited children.
@@ -328,7 +328,7 @@ scheduler(void)
   struct proc *p;
   struct cpu *c = mycpu();
   c->proc = 0;
-  
+
   for(;;){
     // Enable interrupts on this processor.
     sti();
@@ -421,7 +421,7 @@ void
 sleep(void *chan, struct spinlock *lk)
 {
   struct proc *p = myproc();
-  
+
   if(p == 0)
     panic("sleep");
 
@@ -535,3 +535,64 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+#ifdef LAPA
+uint
+num_of_ones (int c) {
+  int ans = 0;
+  do {
+    if (c%2 != 0) ans++;
+    c >>= 1;
+  } while (c);
+  return ans;
+}
+#endif
+
+#if defined(NFUA) || defined(LAPA)
+int
+select_page () {
+  struct proc* p = myproc();
+  struct page_meta* pages = p->pages;
+  struct page_meta currPage;
+  int selected = -1;
+  uint curr, best = -1;
+  for (int i=0; i<MAX_TOTAL_PAGES; i++) {
+    currPage = pages[i];
+    if (currPage.taken && currPage.on_phys) {
+#ifdef LAPA
+      curr = num_of_ones(currPage.counter);
+      if (curr < best || (curr == best && currPage.counter < pages[selected].counter)) {
+        best = curr;
+        selected = i;
+      }
+#endif
+#ifdef NFUA
+      curr = currPage.counter;
+      if (curr < best) {
+        best = curr;
+        selected = i;
+      }
+#endif
+    }
+  }
+  return selected;
+}
+
+void
+resetPagesCounter() {
+  struct proc* p = myproc();
+  struct page_meta* pages = p->pages;
+  struct page_meta currPage;
+  for (int i=0; i<MAX_TOTAL_PAGES; i++) {
+    currPage = pages[i];
+    if (currPage.taken && currPage.on_phys && (*(currPage.pte) & PTE_A)) {
+#ifdef NFUA
+      currPage.counter = 0;
+#endif
+#ifdef LAPA
+      currPage.counter = -1;
+#endif
+    }
+  }
+}
+#endif

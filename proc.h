@@ -39,6 +39,9 @@ struct page_meta{
   int offset;
   char on_phys;
   char taken;
+#if defined(NFUA) || defined(LAPA)
+  uint counter;
+#endif
 };
 
 // Per-process state
@@ -80,6 +83,10 @@ void printbits(uint*);
 void copy_page_arr(struct proc*,struct proc*);
 void copy_swap_file(struct proc*,struct proc*);
 void handle_pgflt();
+
+#if defined(NFUA) || defined(LAPA)
+void resetPagesCounter();
+#endif
 
 int get_page_to_swap();
 

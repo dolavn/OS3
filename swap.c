@@ -95,6 +95,12 @@ int swap_from_file(uint* page){
   (*page) |= PTE_P;
   (*page) &= ~PTE_PG;
   p->pages[ind].on_phys = 1;
+#ifdef NFUA
+  p->pages[ind].counter = 0;
+#endif
+#ifdef LAPA
+  p->pages[ind].counter = -1; //0xFFFFFFFF
+#endif
   return 1;
 }
 
@@ -112,6 +118,12 @@ void add_page(struct proc* p,uint* page){
   p->pages[ind].taken = 1;
   p->pages[ind].on_phys = 1;
   p->num_of_pages++;
+#ifdef NFUA
+  p->pages[ind].counter = 0;
+#endif
+#ifdef LAPA
+  p->pages[ind].counter = -1; //0xFFFFFFFF
+#endif
 }
 
 void remove_page(uint* page){
@@ -134,4 +146,3 @@ void copy_swap_file(struct proc* dst, struct proc* src) {
   writeToSwapFile(dst, buf, 0, file_size);
   dst->file_size = file_size;
 }
-

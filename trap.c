@@ -45,7 +45,7 @@ trap(struct trapframe *tf)
       exit();
     return;
   }
-  
+
   switch(tf->trapno){
   case T_IRQ0 + IRQ_TIMER:
     if(cpuid() == 0){
@@ -54,6 +54,9 @@ trap(struct trapframe *tf)
       wakeup(&ticks);
       release(&tickslock);
     }
+#if defined(NFUA) || defined(LAPA)
+    resetPagesCounter();
+#endif
     lapiceoi();
     break;
   case T_IRQ0 + IRQ_IDE:
