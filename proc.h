@@ -90,7 +90,7 @@ void handle_pgflt();
 void print_proc_data(struct proc*);
 
 #if defined(NFUA) || defined(LAPA)
-void resetPagesCounter();
+void updatePagesCounter();
 #endif
 
 int get_page_to_swap();
