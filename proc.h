@@ -67,6 +67,8 @@ struct proc {
   int offsets[MAX_SWAP_FILE_SZ];
   uint num_of_pages;
   uint phys_pages;
+  uint pgflt_count;
+  uint pgout_count;
 };
 
 int init_page_meta(struct proc*);
@@ -84,6 +86,8 @@ void printbits(uint*);
 void copy_page_arr(struct proc*,struct proc*);
 void copy_swap_file(struct proc*,struct proc*);
 void handle_pgflt();
+
+void print_proc_data(struct proc*);
 
 #if defined(NFUA) || defined(LAPA)
 void resetPagesCounter();

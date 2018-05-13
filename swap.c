@@ -50,6 +50,8 @@ int find_page_ind(struct proc* p,uint* page){
 int init_page_meta(struct proc* p){
   p->num_of_pages = 0;
   p->phys_pages = 0;
+  p->pgflt_count = 0;
+  p->pgout_count = 0;
   for(int i=0;i<MAX_TOTAL_PAGES;++i){
     p->pages[i].pte = (uint*)(FREE_SLOT);
     p->pages[i].taken = 0;

@@ -215,6 +215,7 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 }
 
 void free_page(struct proc* p){
+  p->pgout_count++;
   int ind = get_page_to_swap();
   if(ind==-1){
       cprintf("phys pages:%d\n",p->phys_pages);
@@ -417,6 +418,7 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 void handle_pgflt(){
   char* addr = (char*)(rcr2());
   struct proc* p = myproc();
+  p->pgflt_count++;
   pte_t* page = walkpgdir(p->pgdir,addr,0);
   cprintf("addr:%p\n",(addr));
   cprintf("eip:%p\n",p->tf->eip);

@@ -6,6 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "pagealloc.h"
 
 struct {
   struct spinlock lock;
@@ -234,7 +235,12 @@ exit(void)
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
-
+#ifdef VERBOSE_TRUE
+  print_proc_data(curproc);
+  int total_pages = get_total_pages_num();
+  int free_pages = get_free_pages_num();
+  cprintf("%d / %d free pages in the system\n",free_pages,total_pages);
+#endif
   if(curproc == initproc)
     panic("init exiting");
 
@@ -501,13 +507,7 @@ kill(int pid)
   return -1;
 }
 
-//PAGEBREAK: 36
-// Print a process listing to console.  For debugging.
-// Runs when user types ^P on console.
-// No lock to avoid wedging a stuck machine further.
-void
-procdump(void)
-{
+void print_proc_data(struct proc* p){
   static char *states[] = {
   [UNUSED]    "unused",
   [EMBRYO]    "embryo",
@@ -516,26 +516,39 @@ procdump(void)
   [RUNNING]   "run   ",
   [ZOMBIE]    "zombie"
   };
-  int i;
-  struct proc *p;
   char *state;
+  int i;
   uint pc[10];
+  if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
+      state = states[p->state];
+  else
+      state = "???";
+  cprintf("%d %s %d %d %d %d %s", p->pid, state, p->num_of_pages, p->num_of_pages-p->phys_pages, p->pgflt_count, p->pgout_count, p->name);
+  if(p->state == SLEEPING){
+    getcallerpcs((uint*)p->context->ebp+2, pc);
+    for(i=0; i<10 && pc[i] != 0; i++)
+    cprintf(" %p", pc[i]);
+  }
+  cprintf("\n");
+}
+
+//PAGEBREAK: 36
+// Print a process listing to console.  For debugging.
+// Runs when user types ^P on console.
+// No lock to avoid wedging a stuck machine further.
+void
+procdump(void)
+{
+
+  struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->state == UNUSED)
-      continue;
-    if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
-      state = states[p->state];
-    else
-      state = "???";
-    cprintf("%d %d %s %s", p->pid, p->num_of_pages, state, p->name);
-    if(p->state == SLEEPING){
-      getcallerpcs((uint*)p->context->ebp+2, pc);
-      for(i=0; i<10 && pc[i] != 0; i++)
-        cprintf(" %p", pc[i]);
-    }
-    cprintf("\n");
+    if(p->state == UNUSED){continue;}
+    print_proc_data(p);
   }
+  int total_pages = get_total_pages_num();
+  int free_pages = get_free_pages_num();
+  cprintf("%d / %d free pages in the system\n",free_pages,total_pages);
 }
 
 #ifdef LAPA
