@@ -2,7 +2,7 @@
 #include "user.h"
 #include "fcntl.h"
 
-#define SZ 500
+#define SZ 150
 
 int main(int argc, char** argv){
     int** arr = (int**)(sbrk(SZ*sizeof(int*)));

@@ -214,6 +214,18 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
   return 0;
 }
 
+void free_page(struct proc* p){
+  int ind = get_page_to_swap();
+  if(ind==-1){panic("swap");}
+  pde_t* swap_page = (pde_t*)(p->pages[ind].pte);
+  swap_to_file(swap_page);
+  uint pa = PTE_ADDR(*swap_page);
+  if(pa==0){panic("kfree");}
+  char* v = P2V(pa);
+  kfree(v);
+  lcr3(V2P(p->pgdir));
+}
+
 // Allocate page tables and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
 int
@@ -229,17 +241,8 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   a = PGROUNDUP(oldsz);
   for(; a < newsz; a += PGSIZE){
     if(pgdir == p->pgdir){
-      p->num_of_pages++;
       if(p->num_of_pages >= MAX_PHYS_PAGES){ //find page to swap
-        int ind = get_page_to_swap();
-        if(ind==-1){panic("swap");}
-        pde_t* swap_page = (pde_t*)(p->pages[ind]);
-        printbits(swap_page);
-        swap_to_file(swap_page);
-        uint pa = PTE_ADDR(*swap_page);
-        if(pa==0){panic("kfree");}
-        char* v = P2V(pa);
-        kfree(v);
+        free_page(p);
       }
     }
     mem = kalloc();
@@ -401,6 +404,38 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
     va = va0 + PGSIZE;
   }
   return 0;
+}
+
+void handle_pgflt(){
+  char* addr = (char*)(rcr2());
+  struct proc* p = myproc();
+  pte_t* page = walkpgdir(p->pgdir,addr,0);
+  printbits(page);
+  cprintf("addr:%d\n",(uint)(addr));
+  if((uint)addr>KERNBASE){
+    panic("kernel memory not present");
+  }
+  if(*page & PTE_P){
+    panic("page fault present");
+  }
+  if(!(*page & PTE_PG)){
+    cprintf("segmentation fault\n");
+    p->killed = 1;
+    return;
+  }
+  uint page_start = PGROUNDDOWN((uint)(addr));
+  cprintf("page_start:%d\n",page_start);
+  free_page(p);
+  char* mem = kalloc();
+  if(mem == 0){
+    cprintf("mapping out of memory\n");
+    return;
+  }
+  if(mappages(p->pgdir,(char*)(page_start),PGSIZE,V2P(mem),PTE_W|PTE_U)<0){
+    cprintf("mapping out of memory (2)\n");
+    kfree(mem);
+    return;
+  }
 }
 
 //PAGEBREAK!

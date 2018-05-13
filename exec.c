@@ -18,7 +18,6 @@ exec(char *path, char **argv)
   struct proghdr ph;
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
-
   begin_op();
 
   if((ip = namei(path)) == 0){
@@ -40,6 +39,12 @@ exec(char *path, char **argv)
 
   // Load program into memory.
   sz = 0;
+  init_page_meta(curproc);
+  removeSwapFile(curproc);
+  createSwapFile(curproc);
+  cprintf("size:%d\n",curproc->num_of_pages);
+  oldpgdir = curproc->pgdir;
+  curproc->pgdir = pgdir;
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
     if(readi(ip, (char*)&ph, off, sizeof(ph)) != sizeof(ph))
       goto bad;
@@ -92,12 +97,9 @@ exec(char *path, char **argv)
   safestrcpy(curproc->name, last, sizeof(curproc->name));
 
   // Commit to the user image.
-  oldpgdir = curproc->pgdir;
-  curproc->pgdir = pgdir;
   curproc->sz = sz;
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;
-  curproc->num_of_pages = curproc->sz/PGSIZE;
   switchuvm(curproc);
   freevm(oldpgdir);
   return 0;

@@ -137,7 +137,7 @@ userinit(void)
   p->tf->eflags = FL_IF;
   p->tf->esp = PGSIZE;
   p->tf->eip = 0;  // beginning of initcode.S
-
+  p->swapFile = 0;
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
 
@@ -210,6 +210,11 @@ fork(void)
 
   pid = np->pid;
   createSwapFile(np);
+  np->file_size = 0;
+  if(curproc->swapFile){
+    copy_swap_file(np,curproc);
+  }
+  copy_page_arr(np,curproc);
   acquire(&ptable.lock);
 
   np->state = RUNNABLE;
