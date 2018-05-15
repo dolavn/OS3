@@ -420,8 +420,8 @@ void handle_pgflt(){
   struct proc* p = myproc();
   p->pgflt_count++;
   pte_t* page = walkpgdir(p->pgdir,addr,0);
-  cprintf("addr:%p\n",(addr));
-  cprintf("eip:%p\n",p->tf->eip);
+  //cprintf("addr:%p\n",(addr));
+  //cprintf("eip:%p\n",p->tf->eip);
   if((uint)addr>KERNBASE){
     panic("kernel memory not present");
   }

@@ -55,12 +55,18 @@ int init_page_meta(struct proc* p){
   for(int i=0;i<MAX_TOTAL_PAGES;++i){
     p->pages[i].pte = (uint*)(FREE_SLOT);
     p->pages[i].taken = 0;
-    p->pages[i].offset = 0;
+    p->pages[i].offset = -1;
     p->pages[i].on_phys = 0;
+#ifdef AQ
+    p->pages[i].queue_location = -1;
+#endif
   }
   for(int i=0;i<MAX_SWAP_FILE_SZ;++i){
     p->offsets[i] = i*PGSIZE;
   }
+#ifdef AQ
+  initQueue(&p->page_queue);
+#endif
   return 0;
 }
 
@@ -96,6 +102,7 @@ int swap_from_file(uint* page){
   int ind = find_page_ind(p,page);
   char* addr = (char*)(PTE_ADDR(*page));
   int offset = p->pages[ind].offset;
+  p->pages[ind].offset = -1;
   readFromSwapFile(p,P2V(addr),offset,PGSIZE);
   free_offset(p,offset);
   (*page) |= PTE_P;
@@ -107,12 +114,20 @@ int swap_from_file(uint* page){
 #ifdef LAPA
   p->pages[ind].counter = -1; //0xFFFFFFFF
 #endif
+#ifdef AQ
+  enqueue(&p->page_queue,&p->pages[ind]);
+#endif
   p->phys_pages++;
   return 1;
 }
 
 int get_page_to_swap(){
   int selected = -1;
+#ifdef AQ
+  struct proc* p = myproc();
+  struct page_meta* page = dequeue(&p->page_queue);
+  selected = page-p->pages;
+#endif
 #if defined(LAPA) || defined(NFUA)
   struct proc* p = myproc();
   struct page_meta* pages = p->pages;
@@ -129,8 +144,7 @@ int get_page_to_swap(){
       }
 #endif
 #ifdef NFUA
-      cprintf("%d:",i);
-      printbits(&currPage->counter);
+      //printbits(&currPage->counter);
       curr = currPage->counter;
       if (curr < best) {
         best = curr;
@@ -140,18 +154,15 @@ int get_page_to_swap(){
     }
   }
 #endif
-#ifdef NFUA
+
+#ifdef COMMENTEDOUT
   cprintf("\n");
   cprintf("%d:",selected);
   printbits(&pages[selected].counter);
+  cprintf("----------------------\n");
 #endif
-  cprintf("selected=%d\n",selected);
+  //cprintf("selected=%d\n",selected);
   return selected;
-  /*struct proc* p = myproc();
-  for(int i=6;i<MAX_TOTAL_PAGES;++i){ // TODO i=6
-    if(p->pages[i].on_phys){return i;}
-  }
-  return -1;*/
 }
 
 void add_page(struct proc* p,uint* page){
@@ -166,6 +177,9 @@ void add_page(struct proc* p,uint* page){
 #ifdef LAPA
   p->pages[ind].counter = -1; //0xFFFFFFFF
 #endif
+#ifdef AQ
+  enqueue(&p->page_queue,&p->pages[ind]);
+#endif
   p->phys_pages++;
 }
 
@@ -173,6 +187,10 @@ void remove_page(uint* page){
   struct proc* p = myproc();
   int ind = find_page_ind(p,page);
   p->pages[ind].taken = 0;
+  if(p->pages[ind].offset!=-1){
+    free_offset(p,p->pages[ind].offset);
+    p->pages[ind].offset=-1;
+  }
 }
 
 void copy_page_arr(struct proc* dst,struct proc* src){
@@ -193,7 +211,7 @@ void copy_swap_file(struct proc* dst, struct proc* src) {
 
 #ifdef LAPA
 uint
-num_of_ones (int c) {
+num_of_ones (uint c) {
   int ans = 0;
   while(c) {
     if (c%2 != 0) ans++;
@@ -203,7 +221,7 @@ num_of_ones (int c) {
 }
 #endif
 
-#if defined(NFUA) || defined(LAPA)
+#if defined(NFUA) || defined(LAPA) || defined(AQ)
 
 void
 updatePagesCounter() {
@@ -213,16 +231,79 @@ updatePagesCounter() {
   }
   struct page_meta* pages = p->pages;
   struct page_meta* currPage;
+#ifndef AQ
   uint adder = 0x80000000;
+#endif
   for (int i=0; i<MAX_TOTAL_PAGES; i++) {
     currPage = &pages[i];
     if (currPage->taken && currPage->on_phys){
+#ifndef AQ
       currPage->counter >>= 1;
       if ((*(currPage->pte) & PTE_A)){
         currPage->counter |= adder;
         *(currPage->pte) &= ~PTE_A;
       }
+#endif
+#ifdef AQ
+      if ((*(currPage->pte) & PTE_A)) {
+        advancePage(&p->page_queue,currPage);
+        *(currPage->pte) &= ~PTE_A;
+      }
+#endif
     }
   }
 }
+#endif
+
+#ifdef AQ
+
+/*
+ *  Queue implementation
+ */
+
+//initializes the queue
+void initQueue(pageQueue* queue){
+  queue->start=0;
+  queue->end=0;
+  queue->size=0;
+  for(int i=0;i<MAX_TOTAL_PAGES;++i){queue->arr[i]=0;}
+}
+
+//enqueues index to queue
+int enqueue(pageQueue* queue,struct page_meta* page){
+  if(queue->size==MAX_TOTAL_PAGES){return -1;}
+  int next = (queue->end+1)%MAX_TOTAL_PAGES;
+  int ans = queue->end;
+  queue->arr[ans]=page;
+  page->queue_location = ans;
+  queue->end = next;
+  queue->size++;
+  return ans;
+}
+
+//dequeues index from queue
+struct page_meta* dequeue(pageQueue* queue){
+  if(isEmpty(queue)){return 0;}
+  struct page_meta* ans = queue->arr[queue->start];
+  queue->arr[queue->start]=0;
+  queue->start = (queue->start+1)%MAX_TOTAL_PAGES;
+  queue->size--;
+  ans->queue_location = -1;
+  return ans;
+}
+
+void advancePage(pageQueue* queue, struct page_meta* page){
+  int ind = page->queue_location;
+  if(ind==queue->start){return;}
+  int secInd = ind==0?MAX_TOTAL_PAGES-1:ind-1;
+  struct page_meta* tmp = queue->arr[secInd];
+  queue->arr[secInd] = queue->arr[ind];
+  queue->arr[ind] = tmp;
+}
+
+//checks if queue is empty
+int isEmpty(pageQueue* queue){
+  return queue->size==0;
+}
+
 #endif
