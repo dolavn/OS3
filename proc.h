@@ -65,11 +65,14 @@ struct proc {
 
   //Swap file. must initiate with create swap file
   struct file *swapFile;      //page file
+  uint num_of_pages;
+  uint phys_pages;
+  uint pgflt_count;
+  uint pgout_count;
   int file_size;              //file size
   struct page_meta pages[MAX_TOTAL_PAGES];
   int offsets[MAX_SWAP_FILE_SZ];
-  uint num_of_pages;
-  uint phys_pages;
+  char ignorePaging;
 };
 
 int init_page_meta(struct proc*);
@@ -88,8 +91,14 @@ void copy_page_arr(struct proc*,struct proc*);
 void copy_swap_file(struct proc*,struct proc*);
 void handle_pgflt();
 
+void print_proc_data(struct proc*);
+
 #if defined(NFUA) || defined(LAPA)
 void updatePagesCounter();
+#endif
+
+#ifdef LAPA
+uint num_of_ones(int);
 #endif
 
 int get_page_to_swap();

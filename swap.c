@@ -50,6 +50,8 @@ int find_page_ind(struct proc* p,uint* page){
 int init_page_meta(struct proc* p){
   p->num_of_pages = 0;
   p->phys_pages = 0;
+  p->pgflt_count = 0;
+  p->pgout_count = 0;
   for(int i=0;i<MAX_TOTAL_PAGES;++i){
     p->pages[i].pte = (uint*)(FREE_SLOT);
     p->pages[i].taken = 0;
@@ -110,11 +112,46 @@ int swap_from_file(uint* page){
 }
 
 int get_page_to_swap(){
+  int selected = -1;
+#if defined(LAPA) || defined(NFUA)
   struct proc* p = myproc();
+  struct page_meta* pages = p->pages;
+  struct page_meta* currPage;
+  uint curr, best = -1;
+  for (int i=0; i<MAX_TOTAL_PAGES; i++) {
+    currPage = &pages[i];
+    if (currPage->taken && currPage->on_phys) {
+#ifdef LAPA
+      curr = num_of_ones(currPage->counter);
+      if (curr < best || (curr == best && currPage->counter < pages[selected].counter)) {
+        best = curr;
+        selected = i;
+      }
+#endif
+#ifdef NFUA
+      cprintf("%d:",i);
+      printbits(&currPage->counter);
+      curr = currPage->counter;
+      if (curr < best) {
+        best = curr;
+        selected = i;
+      }
+#endif
+    }
+  }
+#endif
+#ifdef NFUA
+  cprintf("\n");
+  cprintf("%d:",selected);
+  printbits(&pages[selected].counter);
+#endif
+  cprintf("selected=%d\n",selected);
+  return selected;
+  /*struct proc* p = myproc();
   for(int i=6;i<MAX_TOTAL_PAGES;++i){ // TODO i=6
     if(p->pages[i].on_phys){return i;}
   }
-  return -1;
+  return -1;*/
 }
 
 void add_page(struct proc* p,uint* page){
@@ -130,7 +167,6 @@ void add_page(struct proc* p,uint* page){
   p->pages[ind].counter = -1; //0xFFFFFFFF
 #endif
   p->phys_pages++;
-  cprintf("phys:%d\ntotal:%d\n",p->phys_pages,p->num_of_pages);
 }
 
 void remove_page(uint* page){
@@ -153,3 +189,40 @@ void copy_swap_file(struct proc* dst, struct proc* src) {
   writeToSwapFile(dst, buf, 0, file_size);
   dst->file_size = file_size;
 }
+
+
+#ifdef LAPA
+uint
+num_of_ones (int c) {
+  int ans = 0;
+  while(c) {
+    if (c%2 != 0) ans++;
+    c /= 2;
+  }
+  return ans;
+}
+#endif
+
+#if defined(NFUA) || defined(LAPA)
+
+void
+updatePagesCounter() {
+  struct proc* p = myproc();
+  if(p==0){
+    return;
+  }
+  struct page_meta* pages = p->pages;
+  struct page_meta* currPage;
+  uint adder = 0x80000000;
+  for (int i=0; i<MAX_TOTAL_PAGES; i++) {
+    currPage = &pages[i];
+    if (currPage->taken && currPage->on_phys){
+      currPage->counter >>= 1;
+      if ((*(currPage->pte) & PTE_A)){
+        currPage->counter |= adder;
+        *(currPage->pte) &= ~PTE_A;
+      }
+    }
+  }
+}
+#endif

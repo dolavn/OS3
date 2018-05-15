@@ -6,6 +6,7 @@
 #include "x86.h"
 #include "proc.h"
 #include "spinlock.h"
+#include "pagealloc.h"
 
 struct {
   struct spinlock lock;
@@ -141,7 +142,7 @@ userinit(void)
   p->swapFile = 0;
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
-
+  p->ignorePaging = 1;
   // this assignment to p->state lets other cores
   // run this process. the acquire forces the above
   // writes to be visible, and the lock is also needed
@@ -197,6 +198,7 @@ fork(void)
   }
   np->sz = curproc->sz;
   np->parent = curproc;
+  np->ignorePaging = curproc->ignorePaging;
   *np->tf = *curproc->tf;
 
   // Clear %eax so that fork returns 0 in the child.
@@ -234,7 +236,12 @@ exit(void)
   struct proc *curproc = myproc();
   struct proc *p;
   int fd;
-
+#ifdef VERBOSE_TRUE
+  print_proc_data(curproc);
+  int total_pages = get_total_pages_num();
+  int free_pages = get_free_pages_num();
+  cprintf("%d / %d free pages in the system\n",free_pages,total_pages);
+#endif
   if(curproc == initproc)
     panic("init exiting");
 
@@ -501,13 +508,7 @@ kill(int pid)
   return -1;
 }
 
-//PAGEBREAK: 36
-// Print a process listing to console.  For debugging.
-// Runs when user types ^P on console.
-// No lock to avoid wedging a stuck machine further.
-void
-procdump(void)
-{
+void print_proc_data(struct proc* p){
   static char *states[] = {
   [UNUSED]    "unused",
   [EMBRYO]    "embryo",
@@ -516,82 +517,37 @@ procdump(void)
   [RUNNING]   "run   ",
   [ZOMBIE]    "zombie"
   };
-  int i;
-  struct proc *p;
   char *state;
+  int i;
   uint pc[10];
+  if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
+      state = states[p->state];
+  else
+      state = "???";
+  cprintf("%d %s %d %d %d %d %s", p->pid, state, p->num_of_pages, p->num_of_pages-p->phys_pages, p->pgflt_count, p->pgout_count, p->name);
+  if(p->state == SLEEPING){
+    getcallerpcs((uint*)p->context->ebp+2, pc);
+    for(i=0; i<10 && pc[i] != 0; i++)
+    cprintf(" %p", pc[i]);
+  }
+  cprintf("\n");
+}
+
+//PAGEBREAK: 36
+// Print a process listing to console.  For debugging.
+// Runs when user types ^P on console.
+// No lock to avoid wedging a stuck machine further.
+void
+procdump(void)
+{
+
+  struct proc *p;
 
   for(p = ptable.proc; p < &ptable.proc[NPROC]; p++){
-    if(p->state == UNUSED)
-      continue;
-    if(p->state >= 0 && p->state < NELEM(states) && states[p->state])
-      state = states[p->state];
-    else
-      state = "???";
-    cprintf("%d %d %s %s", p->pid, p->num_of_pages, state, p->name);
-    if(p->state == SLEEPING){
-      getcallerpcs((uint*)p->context->ebp+2, pc);
-      for(i=0; i<10 && pc[i] != 0; i++)
-        cprintf(" %p", pc[i]);
-    }
-    cprintf("\n");
+    if(p->state == UNUSED){continue;}
+    print_proc_data(p);
   }
+  int total_pages = get_total_pages_num();
+  int free_pages = get_free_pages_num();
+  cprintf("%d / %d free pages in the system\n",free_pages,total_pages);
 }
-
-#ifdef LAPA
-uint
-num_of_ones (int c) {
-  int ans = 0;
-  do {
-    if (c%2 != 0) ans++;
-    c >>= 1;
-  } while (c);
-  return ans;
-}
-#endif
-
-#if defined(NFUA) || defined(LAPA)
-int
-select_page () {
-  struct proc* p = myproc();
-  struct page_meta* pages = p->pages;
-  struct page_meta currPage;
-  int selected = -1;
-  uint curr, best = -1;
-  for (int i=0; i<MAX_TOTAL_PAGES; i++) {
-    currPage = pages[i];
-    if (currPage.taken && currPage.on_phys) {
-#ifdef LAPA
-      curr = num_of_ones(currPage.counter);
-      if (curr < best || (curr == best && currPage.counter < pages[selected].counter)) {
-        best = curr;
-        selected = i;
-      }
-#endif
-#ifdef NFUA
-      curr = currPage.counter;
-      if (curr < best) {
-        best = curr;
-        selected = i;
-      }
-#endif
-    }
-  }
-  return selected;
-}
-
-void
-updatePagesCounter() {
-  struct proc* p = myproc();
-  struct page_meta* pages = p->pages;
-  struct page_meta currPage;
-  uint adder = 1 << (sizeof(uint)*8);
-  for (int i=0; i<MAX_TOTAL_PAGES; i++) {
-    currPage = pages[i];
-    if (currPage.taken) { //&& currPage.on_phys
-      currPage.counter >>= 1;
-      if ((*(currPage.pte) & PTE_A)) currPage.counter |= adder;
-    }
-  }
-}
-#endif

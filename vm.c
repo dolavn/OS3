@@ -215,6 +215,7 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
 }
 
 void free_page(struct proc* p){
+  p->pgout_count++;
   int ind = get_page_to_swap();
   if(ind==-1){
       cprintf("phys pages:%d\n",p->phys_pages);
@@ -247,7 +248,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     return oldsz;
   a = PGROUNDUP(oldsz);
   for(; a < newsz; a += PGSIZE){
-    if(pgdir == p->pgdir){
+    if(!p->ignorePaging && pgdir == p->pgdir){
       if(p->phys_pages >= MAX_PHYS_PAGES){ //find page to swap
         free_page(p);
       }
@@ -417,6 +418,7 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 void handle_pgflt(){
   char* addr = (char*)(rcr2());
   struct proc* p = myproc();
+  p->pgflt_count++;
   pte_t* page = walkpgdir(p->pgdir,addr,0);
   cprintf("addr:%p\n",(addr));
   cprintf("eip:%p\n",p->tf->eip);
@@ -432,7 +434,9 @@ void handle_pgflt(){
     return;
   }
   uint page_start = PGROUNDDOWN((uint)(addr));
-  free_page(p);
+  if(p->phys_pages==MAX_PHYS_PAGES){
+    free_page(p);
+  }
   char* mem = kalloc();
   if(mem == 0){
     cprintf("mapping out of memory\n");
@@ -444,7 +448,7 @@ void handle_pgflt(){
     return;
   }
   swap_from_file(page);
-  //cprintf("value:%d\n",*addr);
+  printbits((uint*)(addr));
 }
 
 //PAGEBREAK!

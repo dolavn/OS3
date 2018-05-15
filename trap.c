@@ -54,9 +54,9 @@ trap(struct trapframe *tf)
       wakeup(&ticks);
       release(&tickslock);
     }
-#if defined(NFUA) || defined(LAPA)
-    updatePagesCounter();
-#endif
+    #if defined(NFUA) || defined(LAPA)
+      updatePagesCounter();
+    #endif
     lapiceoi();
     break;
   case T_IRQ0 + IRQ_IDE:
