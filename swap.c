@@ -226,4 +226,3 @@ updatePagesCounter() {
   }
 }
 #endif
-

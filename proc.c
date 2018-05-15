@@ -142,7 +142,7 @@ userinit(void)
   p->swapFile = 0;
   safestrcpy(p->name, "initcode", sizeof(p->name));
   p->cwd = namei("/");
-
+  p->ignorePaging = 1;
   // this assignment to p->state lets other cores
   // run this process. the acquire forces the above
   // writes to be visible, and the lock is also needed
@@ -198,6 +198,7 @@ fork(void)
   }
   np->sz = curproc->sz;
   np->parent = curproc;
+  np->ignorePaging = curproc->ignorePaging;
   *np->tf = *curproc->tf;
 
   // Clear %eax so that fork returns 0 in the child.

@@ -42,6 +42,12 @@ exec(char *path, char **argv)
   init_page_meta(curproc);
   removeSwapFile(curproc);
   createSwapFile(curproc);
+  char ignorePaging = 0;
+  if(strncmp(path,"sh",3)!=0){ignorePaging = 0;}
+#ifdef NONE
+  ignorePaging = 1;
+#endif
+  curproc->ignorePaging = ignorePaging;
   oldpgdir = curproc->pgdir;
   curproc->pgdir = pgdir;
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){

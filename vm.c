@@ -248,7 +248,7 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     return oldsz;
   a = PGROUNDUP(oldsz);
   for(; a < newsz; a += PGSIZE){
-    if(pgdir == p->pgdir){
+    if(!p->ignorePaging && pgdir == p->pgdir){
       if(p->phys_pages >= MAX_PHYS_PAGES){ //find page to swap
         free_page(p);
       }
