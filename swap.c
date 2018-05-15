@@ -54,7 +54,6 @@ int init_page_meta(struct proc* p){
   p->pgout_count = 0;
 #ifdef SCFIFO
   p->headp = -1;
-  p->lastp = -1;
 #endif
   for(int i=0;i<MAX_TOTAL_PAGES;++i){
     p->pages[i].pte = (uint*)(FREE_SLOT);
@@ -92,6 +91,10 @@ int swap_to_file(uint* page){
   (*page) &= ~PTE_P;
   (*page) |= PTE_PG;
   p->phys_pages--;
+#ifdef SCFIFO
+  p->pages[p->pages[ind].nextp].prevp = p->pages[ind].prevp;
+  p->pages[p->pages[ind].prevp].nextp = p->pages[ind].nextp;
+#endif
   return 1;
 }
 
@@ -111,11 +114,16 @@ int swap_from_file(uint* page){
 #ifdef LAPA
   p->pages[ind].counter = -1; //0xFFFFFFFF
 #endif
+#ifdef SCFIFO
+  p->pages[ind].nextp = p->headp; // my next is head (i`'m new last)
+  p->pages[ind].prevp = p->pages[p->headp].prevp; //my prev is current last = head.prev
+  p->pages[p->headp].prevp = ind; // i'm heads new prev`
+#endif
   p->phys_pages++;
   return 1;
 }
 
-int get_page_to_swap(){
+int get_page_to_swap() {
   int selected = -1;
 #if defined(LAPA) || defined(NFUA)
   struct proc* p = myproc();
@@ -149,6 +157,23 @@ int get_page_to_swap(){
   cprintf("%d:",selected);
   printbits(&pages[selected].counter);
 #endif
+#ifdef SCFIFO
+  struct proc* p = myproc();
+  struct page_meta* pages = p->pages;
+  int headInd = p->headp;
+  int currInd = p->headp;
+  struct page_meta* currPage;
+  while (1) {
+    currPage = &pages[currInd];
+    if (*(currPage->pte) & PTE_A) {
+      *(currPage->pte) &= ~PTE_A;
+      currInd = currPage->nextp;
+    }
+    else return currInd;
+    if (currInd==headInd) return headInd;
+  }
+  panic("no page chosen");
+#endif
   cprintf("selected=%d\n",selected);
   return selected;
   /*struct proc* p = myproc();
@@ -156,26 +181,13 @@ int get_page_to_swap(){
     if(p->pages[i].on_phys){return i;}
   }
   return -1;*/
-  #ifdef SCFIFO
-    struct proc* p = myproc();
-    struct page_meta* pages = p->pages;
-    int headInd = p->headp;
-    int currInd = p->headp;
-    struct page_meta* currPage;
-    while (1) {
-      currPage = &pages[currInd];
-      if (*(currPage->pte) & PTE_A) {
-        *(currPage->pte) &= ~PTE_A;
-        currInd = currPage->nextp;
-      }
-      else return currInd;
-      if (currInd==headInd) return headInd;
-    }
-  #endif
+
 }
 
 void add_page(struct proc* p,uint* page){
   int ind = find_free_slot();
+  p->num_of_pages++;
+  p->phys_pages++;
   p->pages[ind].pte = page;
   p->pages[ind].taken = 1;
   p->pages[ind].on_phys = 1;
@@ -188,23 +200,30 @@ void add_page(struct proc* p,uint* page){
 #ifdef SCFIFO
   if (p->headp == -1) {
     p->headp = ind;
-    p->lastp = ind;
+    p->pages[p->headp].prevp = ind;
+    p->pages[p->headp].nextp = ind;
+    return;
   }
-  p->pages[ind].nextp = p->headp; // index of next in pages
-  p->pages[p->lastp].nextp = ind;
+  p->pages[ind].nextp = p->headp; // my next is head (i'm new last)
+  p->pages[ind].prevp = p->pages[p->headp].prevp; //my prev is current last = head.prev
+  p->pages[p->headp].prevp = ind; // i'm heads new prev
 #endif
-  p->num_of_pages++;
-  p->phys_pages++;
 }
 
 void remove_page(uint* page){
   struct proc* p = myproc();
   int ind = find_page_ind(p,page);
   p->pages[ind].taken = 0;
+#ifdef SCFIFO
+  p->pages[p->pages[ind].prevp].nextp = p->pages[ind].nextp;
+#endif
 }
 
 void copy_page_arr(struct proc* dst,struct proc* src){
   dst->num_of_pages = src->num_of_pages;
+#ifdef SCFIFO
+  dst->headp = src->headp;
+#endif
   for(int i=0;i<MAX_TOTAL_PAGES;++i){
     dst->pages[i] = src->pages[i];
   }

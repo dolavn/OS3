@@ -44,6 +44,7 @@ struct page_meta{
 #endif
 #ifdef SCFIFO
   int nextp; // index of next in pages
+  int prevp;
 #endif
 };
 
@@ -75,7 +76,6 @@ struct proc {
   char ignorePaging;
 #ifdef SCFIFO
   int headp;  // index of head in pages
-  int lastp;
 #endif
 };
 
