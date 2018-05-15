@@ -100,6 +100,7 @@ int swap_to_file(uint* page){
 #ifdef SCFIFO
   p->pages[p->pages[ind].nextp].prevp = p->pages[ind].prevp;
   p->pages[p->pages[ind].prevp].nextp = p->pages[ind].nextp;
+  (*page) &= ~PTE_A;
 #endif
   return 1;
 }
@@ -126,6 +127,7 @@ int swap_from_file(uint* page){
   p->pages[ind].nextp = p->headp; // my next is head (i`'m new last)
   p->pages[ind].prevp = p->pages[p->headp].prevp; //my prev is current last = head.prev
   p->pages[p->headp].prevp = ind; // i'm heads new prev`
+  p->pages[p->pages[ind].prevp].nextp = ind;
 #endif
 #ifdef AQ
   enqueue(&p->page_queue,&p->pages[ind]);
@@ -136,22 +138,6 @@ int swap_from_file(uint* page){
 
 int get_page_to_swap() {
   int selected = -1;
-  #ifdef SCFIFO
-  struct proc* p = myproc();
-  struct page_meta* pages = p->pages;
-  int headInd = p->headp;
-  int currInd = p->headp;
-  struct page_meta* currPage;
-  while (1) {
-    currPage = &pages[currInd];
-    if (*(currPage->pte) & PTE_A) {
-      *(currPage->pte) &= ~PTE_A;
-      currInd = currPage->nextp;
-    }
-    else return currInd;
-    if (currInd==headInd) return headInd;
-  }
-  #endif
 #ifdef AQ
   struct proc* p = myproc();
   struct page_meta* page = dequeue(&p->page_queue);
@@ -183,7 +169,6 @@ int get_page_to_swap() {
     }
   }
 #endif
-
 #ifdef COMMENTEDOUT
   cprintf("\n");
   cprintf("%d:",selected);
@@ -198,6 +183,7 @@ int get_page_to_swap() {
   struct page_meta* currPage;
   while (1) {
     currPage = &pages[currInd];
+    if (!currPage->on_phys) panic("asdasf");
     if (*(currPage->pte) & PTE_A) {
       *(currPage->pte) &= ~PTE_A;
       currInd = currPage->nextp;
@@ -243,6 +229,7 @@ void add_page(struct proc* p,uint* page){
   p->pages[ind].nextp = p->headp; // my next is head (i'm new last)
   p->pages[ind].prevp = p->pages[p->headp].prevp; //my prev is current last = head.prev
   p->pages[p->headp].prevp = ind; // i'm heads new prev
+  p->pages[p->pages[ind].prevp].nextp = ind;
 #endif
 }
 
@@ -250,10 +237,12 @@ void remove_page(uint* page){
   struct proc* p = myproc();
   int ind = find_page_ind(p,page);
   p->pages[ind].taken = 0;
-
+  
 #ifdef SCFIFO
   p->pages[p->pages[ind].prevp].nextp = p->pages[ind].nextp;
+  p->pages[p->pages[ind].nextp].prevp = p->pages[ind].prevp;
 #endif
+
   if(p->pages[ind].offset!=-1){
     free_offset(p,p->pages[ind].offset);
     p->pages[ind].offset=-1;
