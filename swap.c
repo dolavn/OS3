@@ -136,26 +136,12 @@ int swap_from_file(uint* page){
 
 int get_page_to_swap() {
   int selected = -1;
-  #ifdef SCFIFO
-  struct proc* p = myproc();
-  struct page_meta* pages = p->pages;
-  int headInd = p->headp;
-  int currInd = p->headp;
-  struct page_meta* currPage;
-  while (1) {
-    currPage = &pages[currInd];
-    if (*(currPage->pte) & PTE_A) {
-      *(currPage->pte) &= ~PTE_A;
-      currInd = currPage->nextp;
-    }
-    else return currInd;
-    if (currInd==headInd) return headInd;
-  }
-  #endif
 #ifdef AQ
   struct proc* p = myproc();
+  printQueue(&p->page_queue,p->pages);
   struct page_meta* page = dequeue(&p->page_queue);
   selected = page-p->pages;
+  cprintf("selected:%d\n",selected);
 #endif
 #if defined(LAPA) || defined(NFUA)
   struct proc* p = myproc();
@@ -304,6 +290,10 @@ updatePagesCounter() {
 #ifndef AQ
   uint adder = 0x80000000;
 #endif
+#ifdef AQ
+  //cprintf("queue before:\n");
+  //printQueue(&p->page_queue,p->pages);
+#endif
   for (int i=0; i<MAX_TOTAL_PAGES; i++) {
     currPage = &pages[i];
     if (currPage->taken && currPage->on_phys){
@@ -316,12 +306,18 @@ updatePagesCounter() {
 #endif
 #ifdef AQ
       if ((*(currPage->pte) & PTE_A)) {
+        //cprintf("%d accessed\n",currPage-p->pages);
         advancePage(&p->page_queue,currPage);
+        cprintf("%d accessed\n",currPage-p->pages);
         *(currPage->pte) &= ~PTE_A;
       }
 #endif
     }
   }
+#ifdef AQ
+  //cprintf("queue after:\n");
+  //printQueue(&p->page_queue,p->pages);
+#endif
 }
 #endif
 
@@ -365,7 +361,7 @@ struct page_meta* dequeue(pageQueue* queue){
 void advancePage(pageQueue* queue, struct page_meta* page){
   int ind = page->queue_location;
   if(ind==queue->start){return;}
-  int secInd = ind==0?MAX_TOTAL_PAGES-1:ind-1;
+  int secInd = ind==MAX_TOTAL_PAGES-1?0:ind+1;
   struct page_meta* tmp = queue->arr[secInd];
   queue->arr[secInd] = queue->arr[ind];
   queue->arr[ind] = tmp;
@@ -374,6 +370,17 @@ void advancePage(pageQueue* queue, struct page_meta* page){
 //checks if queue is empty
 int isEmpty(pageQueue* queue){
   return queue->size==0;
+}
+
+void printQueue(pageQueue* queue, struct page_meta* first_page){
+  cprintf("queue size:%d\nfirst:%d\nlast:%d\n",queue->size,queue->start,queue->end);
+  if(queue->size==0){return;}
+  int curr = queue->start;
+  do{
+    cprintf("arr[%d] = page ind:%d\n",curr,queue->arr[curr]-first_page);
+    curr = (curr+1)%MAX_TOTAL_PAGES;
+  }while(curr!=queue->end);
+  cprintf("-----------------------\n");
 }
 
 #endif

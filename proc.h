@@ -64,6 +64,7 @@ int enqueue(pageQueue*,struct page_meta*);
 struct page_meta* dequeue(pageQueue*);
 int isEmpty(pageQueue*);
 void advancePage(pageQueue*,struct page_meta*);
+void printQueue(pageQueue*,struct page_meta*);
 #endif
 
 // Per-process state
