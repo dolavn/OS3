@@ -9,6 +9,8 @@
 #define FREE_SLOT   1
 #define TAKEN_OFFSET -1
 
+#define min(a,b) (a<b?a:b)
+
 void printbits(uint* addr){
   uint bits = *addr;
   char output[33]; output[32]=0;
@@ -60,6 +62,10 @@ int init_page_meta(struct proc* p){
     p->pages[i].taken = 0;
     p->pages[i].offset = -1;
     p->pages[i].on_phys = 0;
+#ifdef SCFIFO
+    p->pages[i].nextp=-1;
+    p->pages[i].prevp=-1;
+#endif
 #ifdef AQ
     p->pages[i].queue_location = -1;
 #endif
@@ -78,6 +84,7 @@ int find_free_slot(){
   for(int i=0;i<MAX_TOTAL_PAGES;++i){
     if(!p->pages[i].taken){return i;}
   }
+  cprintf("p->pid:%d\n",p->pid);
   panic("no free slots");
 }
 
@@ -100,6 +107,11 @@ int swap_to_file(uint* page){
 #ifdef SCFIFO
   p->pages[p->pages[ind].nextp].prevp = p->pages[ind].prevp;
   p->pages[p->pages[ind].prevp].nextp = p->pages[ind].nextp;
+  if(p->headp==ind){
+    p->headp=p->pages[ind].nextp;
+    p->pages[ind].nextp=-1;
+    p->pages[ind].prevp=-1;
+  }
   (*page) &= ~PTE_A;
 #endif
   return 1;
@@ -140,10 +152,10 @@ int get_page_to_swap() {
   int selected = -1;
 #ifdef AQ
   struct proc* p = myproc();
-  printQueue(&p->page_queue,p->pages);
+  //printQueue(&p->page_queue,p->pages);
   struct page_meta* page = dequeue(&p->page_queue);
   selected = page-p->pages;
-  cprintf("selected:%d\n",selected);
+  //cprintf("selected:%d\n",selected);
 #endif
 #if defined(LAPA) || defined(NFUA)
   struct proc* p = myproc();
@@ -171,12 +183,6 @@ int get_page_to_swap() {
     }
   }
 #endif
-#ifdef COMMENTEDOUT
-  cprintf("\n");
-  cprintf("%d:",selected);
-  printbits(&pages[selected].counter);
-  cprintf("----------------------\n");
-#endif
 #ifdef SCFIFO
   struct proc* p = myproc();
   struct page_meta* pages = p->pages;
@@ -185,7 +191,7 @@ int get_page_to_swap() {
   struct page_meta* currPage;
   while (1) {
     currPage = &pages[currInd];
-    if (!currPage->on_phys) panic("asdasf");
+    if (!currPage->on_phys){panic("page on phys");}
     if (*(currPage->pte) & PTE_A) {
       *(currPage->pte) &= ~PTE_A;
       currInd = currPage->nextp;
@@ -195,23 +201,19 @@ int get_page_to_swap() {
   }
   panic("no page chosen");
 #endif
-  cprintf("selected=%d\n",selected);
   return selected;
-  /*struct proc* p = myproc();
-  for(int i=6;i<MAX_TOTAL_PAGES;++i){ // TODO i=6
-    if(p->pages[i].on_phys){return i;}
-  }
-  return -1;*/
 
 }
 
-void add_page(struct proc* p,uint* page){
-  int ind = find_free_slot();
+void add_page(struct proc* p,uint* page,char* va){
   p->num_of_pages++;
   p->phys_pages++;
+  if(p->ignorePaging){return;}
+  int ind = find_free_slot();
   p->pages[ind].pte = page;
   p->pages[ind].taken = 1;
   p->pages[ind].on_phys = 1;
+  p->pages[ind].va = va;
 #ifdef NFUA
   p->pages[ind].counter = 0;
 #endif
@@ -251,21 +253,15 @@ void remove_page(uint* page){
   }
 }
 
-void copy_page_arr(struct proc* dst,struct proc* src){
-  dst->num_of_pages = src->num_of_pages;
-#ifdef SCFIFO
-  dst->headp = src->headp;
-#endif
-  for(int i=0;i<MAX_TOTAL_PAGES;++i){
-    dst->pages[i] = src->pages[i];
-  }
-}
-
 void copy_swap_file(struct proc* dst, struct proc* src) {
   int file_size = src->file_size;
-  char buf[file_size];
-  readFromSwapFile(src, buf, 0, file_size);
-  writeToSwapFile(dst, buf, 0, file_size);
+  char* buffer = kalloc();
+  for(int i=0;i<file_size;i=i+PGSIZE){
+    int size = min(file_size-i,PGSIZE);
+    readFromSwapFile(src, buffer, i, size);
+    writeToSwapFile(dst, buffer, i, size);
+  }
+  kfree(buffer);
   dst->file_size = file_size;
 }
 
@@ -313,7 +309,7 @@ updatePagesCounter() {
       if ((*(currPage->pte) & PTE_A)) {
         //cprintf("%d accessed\n",currPage-p->pages);
         advancePage(&p->page_queue,currPage);
-        cprintf("%d accessed\n",currPage-p->pages);
+        //cprintf("%d accessed\n",currPage-p->pages);
         *(currPage->pte) &= ~PTE_A;
       }
 #endif
@@ -340,6 +336,19 @@ void initQueue(pageQueue* queue){
   for(int i=0;i<MAX_TOTAL_PAGES;++i){queue->arr[i]=0;}
 }
 
+void copyQueue(pageQueue* dst,pageQueue* src,struct page_meta* first_page_dst,struct page_meta* first_page_src){
+  dst->start = src->start;
+  dst->end = src->end;
+  dst->size = src->size;
+  for(int i=0;i<MAX_TOTAL_PAGES;++i){
+    dst->arr[i] = src->arr[i]==0?0:first_page_dst+(src->arr[i]-first_page_src);
+  }
+  cprintf("old queue:\n");
+  printQueue(src,first_page_src);
+  cprintf("new queue:\n");
+  printQueue(dst,first_page_dst);
+}
+
 //enqueues index to queue
 int enqueue(pageQueue* queue,struct page_meta* page){
   if(queue->size==MAX_TOTAL_PAGES){return -1;}
@@ -356,6 +365,9 @@ int enqueue(pageQueue* queue,struct page_meta* page){
 struct page_meta* dequeue(pageQueue* queue){
   if(isEmpty(queue)){return 0;}
   struct page_meta* ans = queue->arr[queue->start];
+  if(!ans){
+    panic("dequeue null");
+  }
   queue->arr[queue->start]=0;
   queue->start = (queue->start+1)%MAX_TOTAL_PAGES;
   queue->size--;
@@ -365,11 +377,21 @@ struct page_meta* dequeue(pageQueue* queue){
 
 void advancePage(pageQueue* queue, struct page_meta* page){
   int ind = page->queue_location;
-  if(ind==queue->start){return;}
-  int secInd = ind==MAX_TOTAL_PAGES-1?0:ind+1;
+  if(ind==-1){return;}
+  int secInd = (ind+1)%MAX_TOTAL_PAGES;
+  if(secInd==queue->end){return;}
   struct page_meta* tmp = queue->arr[secInd];
   queue->arr[secInd] = queue->arr[ind];
   queue->arr[ind] = tmp;
+  if(!(queue->arr[secInd] && queue->arr[ind])){
+    cprintf("ind:%d\n",ind);
+    cprintf("page:%p\n",page);
+    cprintf("on phys:%d\n",page->on_phys);
+    printQueue(queue,page);
+    panic("advance null");
+  }
+  page->queue_location = secInd;
+  tmp->queue_location = ind;
 }
 
 //checks if queue is empty
@@ -382,7 +404,7 @@ void printQueue(pageQueue* queue, struct page_meta* first_page){
   if(queue->size==0){return;}
   int curr = queue->start;
   do{
-    cprintf("arr[%d] = page ind:%d\n",curr,queue->arr[curr]-first_page);
+    cprintf("arr[%d] = %p \tpage ind:%d queue ind:%d\n",curr,queue->arr[curr],queue->arr[curr]-first_page,queue->arr[curr]->queue_location);
     curr = (curr+1)%MAX_TOTAL_PAGES;
   }while(curr!=queue->end);
   cprintf("-----------------------\n");

@@ -248,6 +248,9 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     return oldsz;
   a = PGROUNDUP(oldsz);
   for(; a < newsz; a += PGSIZE){
+    if(p->pid>3){
+      //panic("forked proc allocing");
+    }
     if(!p->ignorePaging && pgdir == p->pgdir){
       if(p->phys_pages >= MAX_PHYS_PAGES){ //find page to swap
         free_page(p);
@@ -269,7 +272,9 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     if(p->pgdir == pgdir){
       pte_t* pg_entry = walkpgdir(pgdir,(const char*)(a),0);
       if(find_page_ind(p,pg_entry)==-1){
-        add_page(p,pg_entry);
+        add_page(p,pg_entry,(char*)a);
+      }else{
+        panic("add page");
       }
     }
   }
@@ -357,8 +362,17 @@ copyuvm(pde_t *pgdir, uint sz)
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walkpgdir(pgdir, (void *) i, 0)) == 0)
       panic("copyuvm: pte should exist");
-    if(!(*pte & PTE_P))
-      panic("copyuvm: page not present");
+    if(!(*pte & PTE_P) && !(*pte && PTE_PG)){
+      panic("copyuvm: page not present and not on disk");
+    }
+    if(*pte & PTE_PG){
+      pte_t *npte;
+      if((npte = walkpgdir(d, (void*)i,1))==0){
+        panic("copyuvm: can't create pte");
+      }
+      *npte = *pte;
+      continue;
+    }
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0)
@@ -372,6 +386,27 @@ copyuvm(pde_t *pgdir, uint sz)
 bad:
   freevm(d);
   return 0;
+}
+
+void copy_page_arr(struct proc* dst,struct proc* src){
+  dst->num_of_pages = src->num_of_pages;
+  dst->phys_pages = src->phys_pages;
+#ifdef SCFIFO
+  dst->headp = src->headp;
+#endif
+  for(int i=0;i<MAX_TOTAL_PAGES;++i){
+    if(!(src->pages[i].on_phys) || 1){
+      dst->pages[i] = src->pages[i];
+      dst->pages[i].pte = walkpgdir(dst->pgdir,dst->pages[i].va,0);
+    }
+    //cprintf("dst->pages[%d].taken=%d\tsrc->pages[%d].taken=%d\n",i,dst->pages[i].taken,i,src->pages[i].taken);
+  }
+  for(int i=0;i<MAX_SWAP_FILE_SZ;++i){
+    dst->offsets[i] = src->offsets[i];
+  }
+#ifdef AQ
+  copyQueue(&dst->page_queue,&src->page_queue,dst->pages,src->pages);
+#endif
 }
 
 //PAGEBREAK!
@@ -448,7 +483,6 @@ void handle_pgflt(){
     return;
   }
   swap_from_file(page);
-  printbits((uint*)(addr));
 }
 
 //PAGEBREAK!

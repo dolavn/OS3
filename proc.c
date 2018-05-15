@@ -223,7 +223,7 @@ fork(void)
   np->state = RUNNABLE;
 
   release(&ptable.lock);
-
+  
   return pid;
 }
 

@@ -36,6 +36,7 @@ enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
 struct page_meta{
   uint* pte;
+  char* va;
   int offset;
   char on_phys;
   char taken;
@@ -60,6 +61,7 @@ typedef struct pageQueue{
 }pageQueue;
 
 void initQueue(pageQueue*);
+void copyQueue(pageQueue*,pageQueue*,struct page_meta*,struct page_meta*);
 int enqueue(pageQueue*,struct page_meta*);
 struct page_meta* dequeue(pageQueue*);
 int isEmpty(pageQueue*);
@@ -109,7 +111,7 @@ void free_page(struct proc*);
 int swap_from_file(uint*);
 int get_offset(struct proc*);
 void free_offset(struct proc*,int);
-void add_page(struct proc*,uint*);
+void add_page(struct proc*,uint*,char*);
 void remove_page(uint*);
 void printbits(uint*);
 void copy_page_arr(struct proc*,struct proc*);

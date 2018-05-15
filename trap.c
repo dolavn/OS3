@@ -87,6 +87,9 @@ trap(struct trapframe *tf)
       // In kernel, it must be our mistake.
       cprintf("unexpected trap %d from cpu %d eip %x (cr2=0x%x)\n",
               tf->trapno, cpuid(), tf->eip, rcr2());
+#ifdef AQ
+      printQueue(&myproc()->page_queue,myproc()->pages);
+#endif
       panic("trap");
     }
     if(tf->trapno == T_PGFLT){

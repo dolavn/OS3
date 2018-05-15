@@ -12,12 +12,19 @@ int main(int argc, char** argv){
         arr[i][j] = i+j;
       }
     }
+    int pid = fork();
+    printf(2,"%s continues\n",pid==0?"child":"father");
     for(int i=0;i<SZ;++i){
       for(int j=0;j<SZ;++j){
         printf(2,"%d ",arr[i][j]);
       }
       printf(2,"\n");
     }
+    for(int i=0;i<SZ;++i){
+      free(arr[i]);
+    }
+    free(arr);
+    if(pid){wait();}
     exit();
 }
 
