@@ -42,11 +42,29 @@ struct page_meta{
 #if defined(NFUA) || defined(LAPA)
   uint counter;
 #endif
+#ifdef AQ
+  uint queue_location;
+#endif
 #ifdef SCFIFO
   int nextp; // index of next in pages
   int prevp;
 #endif
 };
+
+#ifdef AQ
+typedef struct pageQueue{
+  struct page_meta* arr[MAX_TOTAL_PAGES];
+  int start;
+  int end;
+  int size;
+}pageQueue;
+
+void initQueue(pageQueue*);
+int enqueue(pageQueue*,struct page_meta*);
+struct page_meta* dequeue(pageQueue*);
+int isEmpty(pageQueue*);
+void advancePage(pageQueue*,struct page_meta*);
+#endif
 
 // Per-process state
 struct proc {
@@ -63,7 +81,9 @@ struct proc {
   struct file *ofile[NOFILE];  // Open files
   struct inode *cwd;           // Current directory
   char name[16];               // Process name (debugging)
-
+#ifdef AQ
+  struct pageQueue page_queue;
+#endif
   //Swap file. must initiate with create swap file
   struct file *swapFile;      //page file
   uint num_of_pages;
@@ -97,13 +117,14 @@ void handle_pgflt();
 
 void print_proc_data(struct proc*);
 
-#if defined(NFUA) || defined(LAPA)
+#if defined(NFUA) || defined(LAPA) || defined(AQ)
 void updatePagesCounter();
 #endif
 
 #ifdef LAPA
-uint num_of_ones(int);
+uint num_of_ones(uint);
 #endif
+
 
 int get_page_to_swap();
 

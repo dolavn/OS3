@@ -54,7 +54,7 @@ trap(struct trapframe *tf)
       wakeup(&ticks);
       release(&tickslock);
     }
-    #if defined(NFUA) || defined(LAPA)
+    #if defined(NFUA) || defined(LAPA) || defined(AQ)
       updatePagesCounter();
     #endif
     lapiceoi();

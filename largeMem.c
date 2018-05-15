@@ -5,9 +5,9 @@
 #define SZ 120
 
 int main(int argc, char** argv){
-    int** arr = (int**)(sbrk(SZ*sizeof(int*)));
+    int** arr = (int**)(malloc(SZ*sizeof(int*)));
     for(int i=0;i<SZ;++i){
-      arr[i] = (int*)(sbrk(SZ*sizeof(int)));
+      arr[i] = (int*)(malloc(SZ*sizeof(int)));
       for(int j=0;j<SZ;++j){
         arr[i][j] = i+j;
       }
