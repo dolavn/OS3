@@ -42,6 +42,9 @@ struct page_meta{
 #if defined(NFUA) || defined(LAPA)
   uint counter;
 #endif
+#ifdef SCFIFO
+  int ctime;
+#endif
 };
 
 // Per-process state
