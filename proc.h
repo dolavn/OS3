@@ -45,6 +45,9 @@ struct page_meta{
 #ifdef AQ
   uint queue_location;
 #endif
+#ifdef SCFIFO
+  int nextp; // index of next in pages
+#endif
 };
 
 #ifdef AQ
@@ -90,6 +93,10 @@ struct proc {
   struct page_meta pages[MAX_TOTAL_PAGES];
   int offsets[MAX_SWAP_FILE_SZ];
   char ignorePaging;
+#ifdef SCFIFO
+  int headp;  // index of head in pages
+  int lastp;
+#endif
 };
 
 int init_page_meta(struct proc*);
