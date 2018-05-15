@@ -52,6 +52,10 @@ int init_page_meta(struct proc* p){
   p->phys_pages = 0;
   p->pgflt_count = 0;
   p->pgout_count = 0;
+#ifdef SCFIFO
+  p->headp = -1;
+  p->lastp = -1;
+#endif
   for(int i=0;i<MAX_TOTAL_PAGES;++i){
     p->pages[i].pte = (uint*)(FREE_SLOT);
     p->pages[i].taken = 0;
@@ -152,6 +156,22 @@ int get_page_to_swap(){
     if(p->pages[i].on_phys){return i;}
   }
   return -1;*/
+  #ifdef SCFIFO
+    struct proc* p = myproc();
+    struct page_meta* pages = p->pages;
+    int headInd = p->headp;
+    int currInd = p->headp;
+    struct page_meta* currPage;
+    while (1) {
+      currPage = &pages[currInd];
+      if (*(currPage->pte) & PTE_A) {
+        *(currPage->pte) &= ~PTE_A;
+        currInd = currPage->nextp;
+      }
+      else return currInd;
+      if (currInd==headInd) return headInd;
+    }
+  #endif
 }
 
 void add_page(struct proc* p,uint* page){
@@ -159,13 +179,21 @@ void add_page(struct proc* p,uint* page){
   p->pages[ind].pte = page;
   p->pages[ind].taken = 1;
   p->pages[ind].on_phys = 1;
-  p->num_of_pages++;
 #ifdef NFUA
   p->pages[ind].counter = 0;
 #endif
 #ifdef LAPA
   p->pages[ind].counter = -1; //0xFFFFFFFF
 #endif
+#ifdef SCFIFO
+  if (p->headp == -1) {
+    p->headp = ind;
+    p->lastp = ind;
+  }
+  p->pages[ind].nextp = p->headp; // index of next in pages
+  p->pages[p->lastp].nextp = ind;
+#endif
+  p->num_of_pages++;
   p->phys_pages++;
 }
 

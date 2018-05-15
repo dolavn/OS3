@@ -43,7 +43,7 @@ struct page_meta{
   uint counter;
 #endif
 #ifdef SCFIFO
-  int ctime;
+  int nextp; // index of next in pages
 #endif
 };
 
@@ -73,6 +73,10 @@ struct proc {
   struct page_meta pages[MAX_TOTAL_PAGES];
   int offsets[MAX_SWAP_FILE_SZ];
   char ignorePaging;
+#ifdef SCFIFO
+  int headp;  // index of head in pages
+  int lastp;
+#endif
 };
 
 int init_page_meta(struct proc*);
