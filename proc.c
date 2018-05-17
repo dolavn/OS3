@@ -110,9 +110,8 @@ found:
   p->context = (struct context*)sp;
   memset(p->context, 0, sizeof *p->context);
   p->context->eip = (uint)forkret;
-  p->num_of_pages = 0;
-  p->phys_pages = 0;
   init_page_meta(p);
+  p->swapFile = 0;
   return p;
 }
 
@@ -212,14 +211,15 @@ fork(void)
   safestrcpy(np->name, curproc->name, sizeof(curproc->name));
 
   pid = np->pid;
-  createSwapFile(np);
+#ifndef NONE
   np->file_size = 0;
   if(curproc->swapFile){
+    createSwapFile(np);
     copy_swap_file(np,curproc);
   }
+#endif
   copy_page_arr(np,curproc);
   acquire(&ptable.lock);
-
   np->state = RUNNABLE;
 
   release(&ptable.lock);
@@ -397,6 +397,9 @@ sched(void)
 void
 yield(void)
 {
+#if defined(NFUA) || defined(LAPA) || defined(AQ)
+  updatePagesCounter();
+#endif
   acquire(&ptable.lock);  //DOC: yieldlock
   myproc()->state = RUNNABLE;
   sched();

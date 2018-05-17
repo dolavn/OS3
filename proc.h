@@ -34,6 +34,7 @@ struct context {
 
 enum procstate { UNUSED, EMBRYO, SLEEPING, RUNNABLE, RUNNING, ZOMBIE };
 
+#ifndef NONE
 struct page_meta{
   uint* pte;
   char* va;
@@ -51,6 +52,7 @@ struct page_meta{
   int prevp;
 #endif
 };
+#endif
 
 #ifdef AQ
 typedef struct pageQueue{
@@ -93,29 +95,33 @@ struct proc {
   uint phys_pages;
   uint pgflt_count;
   uint pgout_count;
+  char ignorePaging;
+#ifndef NONE
   int file_size;              //file size
   struct page_meta pages[MAX_TOTAL_PAGES];
   int offsets[MAX_SWAP_FILE_SZ];
-  char ignorePaging;
 #ifdef SCFIFO
   int headp;  // index of head in pages
 #endif
+#endif
 };
 
-int init_page_meta(struct proc*);
+#ifndef NONE
+void free_page(struct proc*);
 int find_free_slot();
 int find_page_ind(struct proc*,uint*);
 int swap_to_file(uint*);
-void free_page(struct proc*);
-
 int swap_from_file(uint*);
 int get_offset(struct proc*);
 void free_offset(struct proc*,int);
-void add_page(struct proc*,uint*,char*);
-void remove_page(uint*);
+void copy_swap_file(struct proc*,struct proc*);
+int get_page_to_swap();
+#endif
+int init_page_meta(struct proc*);
+int add_page(struct proc*,uint*,char*);
+int remove_page(uint*);
 void printbits(uint*);
 void copy_page_arr(struct proc*,struct proc*);
-void copy_swap_file(struct proc*,struct proc*);
 void handle_pgflt();
 
 void print_proc_data(struct proc*);
@@ -129,7 +135,6 @@ uint num_of_ones(uint);
 #endif
 
 
-int get_page_to_swap();
 
 // Process memory is laid out contiguously, low addresses first:
 //   text

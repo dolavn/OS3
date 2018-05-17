@@ -214,6 +214,7 @@ loaduvm(pde_t *pgdir, char *addr, struct inode *ip, uint offset, uint sz)
   return 0;
 }
 
+#ifndef NONE
 void free_page(struct proc* p){
   p->pgout_count++;
   int ind = get_page_to_swap();
@@ -233,6 +234,7 @@ void free_page(struct proc* p){
   kfree(v);
   lcr3(V2P(p->pgdir));
 }
+#endif
 
 // Allocate page tables and physical memory to grow process from oldsz to
 // newsz, which need not be page aligned.  Returns new size or 0 on error.
@@ -252,9 +254,11 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       //panic("forked proc allocing");
     }
     if(!p->ignorePaging && pgdir == p->pgdir){
+#ifndef NONE
       if(p->phys_pages >= MAX_PHYS_PAGES){ //find page to swap
         free_page(p);
       }
+#endif
     }
     mem = kalloc();
     if(mem == 0){
@@ -271,11 +275,23 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     }
     if(p->pgdir == pgdir){
       pte_t* pg_entry = walkpgdir(pgdir,(const char*)(a),0);
-      if(find_page_ind(p,pg_entry)==-1){
-        add_page(p,pg_entry,(char*)a);
+#ifndef NONE
+      int page_ind;
+      if((page_ind=find_page_ind(p,pg_entry))==-1){
+        if(!add_page(p,pg_entry,(char*)a)){
+          cprintf("process out of memory\n");
+          p->killed=1;
+          return oldsz;
+        }
       }else{
+        struct page_meta* page = &p->pages[page_ind];
+        cprintf("pid:%d\n",p->pid);
+        cprintf("pte:%p\nva:%p\noffset:%d\non_phys:%d\ntaken:%d\n",page->pte,page->va,page->offset,page->on_phys,page->taken);
         panic("add page");
       }
+#else
+      add_page(p,pg_entry,(char*)a);
+#endif
     }
   }
   return newsz;
@@ -293,23 +309,33 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   struct proc* p = myproc();
   if(newsz >= oldsz)
     return oldsz;
-
   a = PGROUNDUP(newsz);
   for(; a  < oldsz; a += PGSIZE){
-    if(pgdir == p->pgdir){
-      p->num_of_pages--;
-      panic("not working yet");
-    }
     pte = walkpgdir(pgdir, (char*)a, 0);
-    if(!pte)
+    if(!pte){
       a = PGADDR(PDX(a) + 1, 0, 0) - PGSIZE;
-    else if((*pte & PTE_P) != 0){
+      continue;
+    }
+    if((*pte & PTE_P) != 0){
       pa = PTE_ADDR(*pte);
       if(pa == 0)
         panic("kfree");
       char *v = P2V(pa);
       kfree(v);
+      if(pgdir == p->pgdir){
+        if(!remove_page(pte)){
+          panic("remove page");
+        }
+      }
       *pte = 0;
+    }
+    if(!(*pte & PTE_P) && (*pte & PTE_PG)){
+      if(pgdir == p->pgdir){
+        if(!remove_page(pte)){
+          panic("remove page");
+        }
+      }
+      *pte=0;
     }
   }
   return newsz;
@@ -391,21 +417,22 @@ bad:
 void copy_page_arr(struct proc* dst,struct proc* src){
   dst->num_of_pages = src->num_of_pages;
   dst->phys_pages = src->phys_pages;
+#ifndef NONE
 #ifdef SCFIFO
   dst->headp = src->headp;
 #endif
   for(int i=0;i<MAX_TOTAL_PAGES;++i){
-    if(!(src->pages[i].on_phys) || 1){
-      dst->pages[i] = src->pages[i];
+    dst->pages[i] = src->pages[i];
+    if(dst->pages[i].taken){
       dst->pages[i].pte = walkpgdir(dst->pgdir,dst->pages[i].va,0);
     }
-    //cprintf("dst->pages[%d].taken=%d\tsrc->pages[%d].taken=%d\n",i,dst->pages[i].taken,i,src->pages[i].taken);
   }
   for(int i=0;i<MAX_SWAP_FILE_SZ;++i){
     dst->offsets[i] = src->offsets[i];
   }
 #ifdef AQ
   copyQueue(&dst->page_queue,&src->page_queue,dst->pages,src->pages);
+#endif
 #endif
 }
 
@@ -451,8 +478,13 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 }
 
 void handle_pgflt(){
-  char* addr = (char*)(rcr2());
   struct proc* p = myproc();
+#ifdef NONE
+  cprintf("segmentation fault\n");
+  p->killed = 1;
+  return;
+#else
+  char* addr = (char*)(rcr2());
   p->pgflt_count++;
   pte_t* page = walkpgdir(p->pgdir,addr,0);
   //cprintf("addr:%p\n",(addr));
@@ -483,6 +515,7 @@ void handle_pgflt(){
     return;
   }
   swap_from_file(page);
+#endif
 }
 
 //PAGEBREAK!

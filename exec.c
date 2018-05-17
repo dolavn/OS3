@@ -40,9 +40,11 @@ exec(char *path, char **argv)
   // Load program into memory.
   sz = 0;
   init_page_meta(curproc);
-  removeSwapFile(curproc);
-  createSwapFile(curproc);
-  char ignorePaging = 0;
+  if(curproc->swapFile){
+    removeSwapFile(curproc);
+    createSwapFile(curproc);
+  }
+  char ignorePaging = 1;
   if(strncmp(path,"sh",3)!=0){ignorePaging = 0;}
 #ifdef NONE
   ignorePaging = 1;
