@@ -8,6 +8,15 @@ void add_total_pages_num(int num){
   free_pages = total_pages;
 }
 
+void count_pages(struct run* freelist){
+  total_pages=0;
+  while(freelist){
+    total_pages++;
+    free_pages = total_pages;
+    freelist = freelist->next;    
+  }
+}
+
 void dec_free_pages(){
   free_pages--;
 }

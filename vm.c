@@ -243,16 +243,13 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
 {
   char *mem;
   uint a;
-  struct proc* p = myproc();
   if(newsz >= KERNBASE)
     return 0;
   if(newsz < oldsz)
     return oldsz;
   a = PGROUNDUP(oldsz);
+  struct proc* p = myproc();
   for(; a < newsz; a += PGSIZE){
-    if(p->pid>3){
-      //panic("forked proc allocing");
-    }
     if(!p->ignorePaging && pgdir == p->pgdir){
 #ifndef NONE
       if(p->phys_pages >= MAX_PHYS_PAGES){ //find page to swap
@@ -273,31 +270,29 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       kfree(mem);
       return 0;
     }
-    if(p->pgdir == pgdir){
-      pte_t* pg_entry = walkpgdir(pgdir,(const char*)(a),0);
+    pte_t* pg_entry = walkpgdir(pgdir,(const char*)(a),0);
 #ifndef NONE
-      int page_ind;
-      if((page_ind=find_page_ind(p,pg_entry))==-1){
-        if(!add_page(p,pg_entry,(char*)a)){
-          cprintf("process out of memory\n");
-          p->killed=1;
-          return oldsz;
-        }
-      }else{
-        struct page_meta* page = &p->pages[page_ind];
-        cprintf("pid:%d\n",p->pid);
-        cprintf("pte:%p\nva:%p\noffset:%d\non_phys:%d\ntaken:%d\n",page->pte,page->va,page->offset,page->on_phys,page->taken);
-        panic("add page");
-      }
-#else
-      add_page(p,pg_entry,(char*)a);
-#endif
+    int page_ind;
+    if((page_ind=find_page_ind(p,pg_entry))==-1){
+    if(!add_page(p,pg_entry,(char*)a)){
+        cprintf("process out of memory\n");
+        p->killed=1;
+        return oldsz;
     }
+    }else{
+      struct page_meta* page = &p->pages[page_ind];
+      cprintf("pid:%d\n",p->pid);
+      cprintf("pte:%p\nva:%p\noffset:%d\non_phys:%d\ntaken:%d\n",page->pte,page->va,page->offset,page->on_phys,page->taken);
+      panic("add page");
+    }
+#else
+    add_page(p,pg_entry,(char*)a);
+#endif
   }
   return newsz;
 }
 
-// Deallocate user pages to bring the process size from oldsz to
+// // Deallocate user pages to bring the process size from oldsz to
 // newsz.  oldsz and newsz need not be page-aligned, nor does newsz
 // need to be less than oldsz.  oldsz can be larger than the actual
 // process size.  Returns the new process size.
@@ -331,6 +326,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     }
     if(!(*pte & PTE_P) && (*pte & PTE_PG)){
       if(pgdir == p->pgdir){
+        cprintf("removing\n");
         if(!remove_page(pte)){
           panic("remove page");
         }
@@ -391,6 +387,7 @@ copyuvm(pde_t *pgdir, uint sz)
     if(!(*pte & PTE_P) && !(*pte && PTE_PG)){
       panic("copyuvm: page not present and not on disk");
     }
+    #ifndef NONE
     if(*pte & PTE_PG){
       pte_t *npte;
       if((npte = walkpgdir(d, (void*)i,1))==0){
@@ -399,6 +396,7 @@ copyuvm(pde_t *pgdir, uint sz)
       *npte = *pte;
       continue;
     }
+    #endif
     pa = PTE_ADDR(*pte);
     flags = PTE_FLAGS(*pte);
     if((mem = kalloc()) == 0)

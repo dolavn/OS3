@@ -6,8 +6,8 @@
 #include "x86.h"
 #include "proc.h"
 
-#define FREE_SLOT   1
 #define TAKEN_OFFSET -1
+#define FREE_SLOT 0
 
 #define min(a,b) (a<b?a:b)
 
@@ -22,6 +22,9 @@ void printbits(uint* addr){
 }
 
 #ifndef NONE
+/*
+Returns a new offset in the swap file to which a page can be swapped.
+*/
 int get_offset(struct proc* p){
   for(int i=0;i<MAX_SWAP_FILE_SZ;++i){
     if(p->offsets[i]!=TAKEN_OFFSET){
@@ -33,6 +36,9 @@ int get_offset(struct proc* p){
   panic("swap file");
 }
 
+/*
+Frees an offset in the swap file, that is - mark it available for swapping a page.
+*/
 void free_offset(struct proc* p,int offset){
   for(int i=0;i<MAX_SWAP_FILE_SZ;++i){
     if(p->offsets[i]==TAKEN_OFFSET){
@@ -43,6 +49,10 @@ void free_offset(struct proc* p,int offset){
   panic("swap file");
 }
 
+/*
+Returns the idnex of the page in the page meta data structure, or -1 if the page
+is not in the meta data.
+*/
 int find_page_ind(struct proc* p,uint* page){
   for(int i=0;i<MAX_TOTAL_PAGES;++i){
     if(p->pages[i].pte == page && p->pages[i].taken){return i;}
@@ -50,17 +60,15 @@ int find_page_ind(struct proc* p,uint* page){
   return -1;
 }
 
+/*
+Returns the index of the next page to be swapped out
+*/
 int get_page_to_swap() {
-#ifdef NONE
-  panic("get page none");
-#endif
   int selected = -1;
 #ifdef AQ
   struct proc* p = myproc();
-  //printQueue(&p->page_queue,p->pages);
   struct page_meta* page = dequeue(&p->page_queue);
   selected = page-p->pages;
-  //cprintf("selected:%d\n",selected);
 #endif
 #if defined(LAPA) || defined(NFUA)
   struct proc* p = myproc();
@@ -78,8 +86,6 @@ int get_page_to_swap() {
       }
 #endif
 #ifdef NFUA
-      //cprintf("t:%d p%d %d:\t",currPage->taken,currPage->on_phys,i);
-      //printbits(&currPage->counter);
       curr = currPage->counter;
       if (curr < best) {
         best = curr;
@@ -107,14 +113,13 @@ int get_page_to_swap() {
   }
   panic("no page chosen");
 #endif
-#ifdef NFUA
-  //cprintf("selected:%d\n",selected);
-  //printbits(&(pages[selected].counter));
-#endif
   return selected;
 
 }
 
+/*
+Copies the swap file of process src, to the swap file of process dst.
+*/
 void copy_swap_file(struct proc* dst, struct proc* src) {
   int file_size = src->file_size;
   char* buffer = kalloc();
@@ -127,7 +132,9 @@ void copy_swap_file(struct proc* dst, struct proc* src) {
   dst->file_size = file_size;
 }
 
-
+/*
+Swaps a given page to the swap file.
+*/
 int swap_to_file(uint* page){
   struct proc* p = myproc();
   int ind = find_page_ind(p,page);
@@ -158,10 +165,10 @@ int swap_to_file(uint* page){
   return 1;
 }
 
+/*
+Retrieves a page from the swap file to the main memory.
+*/
 int swap_from_file(uint* page){
-#ifdef NONE
-  panic("swap from file none");
-#endif
   struct proc* p = myproc();
   int ind = find_page_ind(p,page);
   char* addr = (char*)(PTE_ADDR(*page));
@@ -180,9 +187,9 @@ int swap_from_file(uint* page){
 #endif
 
 #ifdef SCFIFO
-  p->pages[ind].nextp = p->headp; // my next is head (i`'m new last)
+  p->pages[ind].nextp = p->headp; // my next is head (i'm new last)
   p->pages[ind].prevp = p->pages[p->headp].prevp; //my prev is current last = head.prev
-  p->pages[p->headp].prevp = ind; // i'm heads new prev`
+  p->pages[p->headp].prevp = ind; // i'm heads new prev
   p->pages[p->pages[ind].prevp].nextp = ind;
 #endif
 #ifdef AQ
@@ -192,6 +199,9 @@ int swap_from_file(uint* page){
   return 1;
 }
 
+/*
+Finds a free index in the page meta data
+*/
 int find_free_slot(){
   struct proc* p = myproc();
   for(int i=0;i<MAX_TOTAL_PAGES;++i){
@@ -203,6 +213,9 @@ int find_free_slot(){
 
 #endif
 
+/*
+Initializes the page meta data
+*/
 int init_page_meta(struct proc* p){
   p->num_of_pages = 0;
   p->phys_pages = 0;
@@ -235,17 +248,21 @@ int init_page_meta(struct proc* p){
   return 0;
 }
 
+/*
+Adds a page to the page meta data
+*/
 int add_page(struct proc* p,uint* page,char* va){
 #ifdef NONE
   p->num_of_pages++;
   p->phys_pages++;
 #else
+  p->num_of_pages++;
+  p->phys_pages++;
+  if(p->ignorePaging){return 1;}
   int ind = find_free_slot();
   if(ind==-1){
     return 0;
   }
-
-  if(p->ignorePaging){return 1;}
   p->pages[ind].pte = page;
   p->pages[ind].taken = 1;
   p->pages[ind].on_phys = 1;
@@ -258,6 +275,7 @@ int add_page(struct proc* p,uint* page,char* va){
 #endif
 #ifdef AQ
   enqueue(&p->page_queue,&p->pages[ind]);
+  //cprintf("add page\nphysical pages:%d\nqueue size:%d\n",p->phys_pages,p->page_queue.size);
 #endif
 #ifdef SCFIFO
   if (p->headp == -1) {
@@ -275,12 +293,16 @@ int add_page(struct proc* p,uint* page,char* va){
   return 1;
 }
 
+/*
+Removes a page from the page meta data
+*/
 int remove_page(uint* page){
   struct proc* p = myproc();
   if(p->ignorePaging){p->num_of_pages--;p->phys_pages--; return 1;}
 #ifndef NONE
   int ind = find_page_ind(p,page);
   if(ind==-1){return 0;}
+  p->num_of_pages--;
   if(p->pages[ind].on_phys){p->phys_pages--;}
   p->pages[ind].taken = 0;
   p->pages[ind].pte = 0;
@@ -293,13 +315,15 @@ int remove_page(uint* page){
     p->headp=p->pages[ind].nextp==ind?-1:p->pages[ind].nextp;
   }
 #endif
-  p->pages[ind].on_phys = 0;
 #ifdef AQ
   int queue_ind = p->pages[ind].queue_location;
-  p->pages[ind].queue_location=-1;
-  p->page_queue.arr[queue_ind]=0;
-  p->page_queue.size--;
+  if(p->pages[ind].on_phys){
+    p->pages[ind].queue_location=-1;
+    p->page_queue.arr[queue_ind]=0;
+    p->page_queue.size--;
+  }
 #endif
+  p->pages[ind].on_phys = 0;
 #if defined(NFUA) || defined(LAPA)
   p->pages[ind].counter = 0;
 #endif
@@ -313,6 +337,9 @@ int remove_page(uint* page){
 
 
 #ifdef LAPA
+/*
+Counts the number of turned on bits in an unsigned int
+*/
 uint
 num_of_ones (uint c) {
   int ans = 0;
@@ -326,6 +353,10 @@ num_of_ones (uint c) {
 
 #if defined(NFUA) || defined(LAPA) || defined(AQ)
 
+/*
+Updates the page counter in NFUA and LAPA paging policies, and the advancing queue,
+in AQ paging policy.
+*/
 void
 updatePagesCounter() {
   struct proc* p = myproc();
@@ -348,9 +379,7 @@ updatePagesCounter() {
       }
 #else
       if ((*(currPage->pte) & PTE_A)) {
-        //cprintf("%d accessed\n",currPage-p->pages);
         advancePage(&p->page_queue,currPage);
-        //cprintf("%d accessed\n",currPage-p->pages);
         *(currPage->pte) &= ~PTE_A;
       }
 #endif
@@ -409,21 +438,19 @@ struct page_meta* dequeue(pageQueue* queue){
   return ans;
 }
 
+//advances a page
 void advancePage(pageQueue* queue, struct page_meta* page){
   int ind = page->queue_location;
   if(ind==-1){return;}
   int secInd = (ind+1)%MAX_TOTAL_PAGES;
+  while(!queue->arr[secInd]){
+    secInd = (secInd+1)%MAX_TOTAL_PAGES;
+    if(secInd==queue->end){return;}
+  }
   if(secInd==queue->end){return;}
   struct page_meta* tmp = queue->arr[secInd];
   queue->arr[secInd] = queue->arr[ind];
   queue->arr[ind] = tmp;
-  if(!(queue->arr[secInd] && queue->arr[ind])){
-    cprintf("ind:%d\n",ind);
-    cprintf("page:%p\n",page);
-    cprintf("on phys:%d\n",page->on_phys);
-    printQueue(queue,page);
-    panic("advance null");
-  }
   page->queue_location = secInd;
   tmp->queue_location = ind;
 }

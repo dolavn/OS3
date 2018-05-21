@@ -19,7 +19,6 @@ exec(char *path, char **argv)
   pde_t *pgdir, *oldpgdir;
   struct proc *curproc = myproc();
   begin_op();
-
   if((ip = namei(path)) == 0){
     end_op();
     cprintf("exec: fail\n");
@@ -27,7 +26,6 @@ exec(char *path, char **argv)
   }
   ilock(ip);
   pgdir = 0;
-
   // Check ELF header
   if(readi(ip, (char*)&elf, 0, sizeof(elf)) != sizeof(elf))
     goto bad;
@@ -42,16 +40,16 @@ exec(char *path, char **argv)
   init_page_meta(curproc);
   if(curproc->swapFile){
     removeSwapFile(curproc);
-    createSwapFile(curproc);
   }
   char ignorePaging = 1;
   if(strncmp(path,"sh",3)!=0){ignorePaging = 0;}
 #ifdef NONE
   ignorePaging = 1;
 #endif
+  if(!ignorePaging){
+    createSwapFile(curproc);
+  }
   curproc->ignorePaging = ignorePaging;
-  oldpgdir = curproc->pgdir;
-  curproc->pgdir = pgdir;
   for(i=0, off=elf.phoff; i<elf.phnum; i++, off+=sizeof(ph)){
     if(readi(ip, (char*)&ph, off, sizeof(ph)) != sizeof(ph))
       goto bad;
@@ -71,7 +69,6 @@ exec(char *path, char **argv)
   iunlockput(ip);
   end_op();
   ip = 0;
-
   // Allocate two pages at the next page boundary.
   // Make the first inaccessible.  Use the second as the user stack.
   sz = PGROUNDUP(sz);
@@ -92,7 +89,6 @@ exec(char *path, char **argv)
   ustack[0] = 0xffffffff;  // fake return PC
   ustack[1] = argc;
   ustack[2] = sp - (argc+1)*4;  // argv pointer
-
   sp -= (3+argc+1) * 4;
   if(copyout(pgdir, sp, ustack, (3+argc+1)*4) < 0)
     goto bad;
@@ -104,6 +100,8 @@ exec(char *path, char **argv)
   safestrcpy(curproc->name, last, sizeof(curproc->name));
 
   // Commit to the user image.
+  oldpgdir = curproc->pgdir;
+  curproc->pgdir = pgdir;
   curproc->sz = sz;
   curproc->tf->eip = elf.entry;  // main
   curproc->tf->esp = sp;

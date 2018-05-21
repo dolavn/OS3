@@ -14,10 +14,8 @@ void freerange(void *vstart, void *vend);
 extern char end[]; // first address after kernel loaded from ELF file
                    // defined by the kernel linker script in kernel.ld
 
-struct run {
-  struct run *next;
-};
-
+int pages_counted=0;
+                   
 struct {
   struct spinlock lock;
   int use_lock;
@@ -42,6 +40,7 @@ kinit2(void *vstart, void *vend)
 {
   freerange(vstart, vend);
   kmem.use_lock = 1;
+  pages_counted = 1;
 }
 
 void
@@ -49,12 +48,12 @@ freerange(void *vstart, void *vend)
 {
   char *p;
   p = (char*)PGROUNDUP((uint)vstart);
-  int num_freed = 0;
+  //int num_freed = 0;
   for(; p + PGSIZE <= (char*)vend; p += PGSIZE){
     kfree(p);
-    num_freed++;
+    //num_freed++;
   }
-  add_total_pages_num(num_freed);
+  count_pages(kmem.freelist);
 }
 //PAGEBREAK: 21
 // Free the page of physical memory pointed at by v,
@@ -77,7 +76,9 @@ kfree(char *v)
   r = (struct run*)v;
   r->next = kmem.freelist;
   kmem.freelist = r;
-  inc_free_pages();
+  if(pages_counted){
+    inc_free_pages();
+  }
   if(kmem.use_lock)
     release(&kmem.lock);
 }
