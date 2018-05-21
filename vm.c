@@ -326,7 +326,6 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     }
     if(!(*pte & PTE_P) && (*pte & PTE_PG)){
       if(pgdir == p->pgdir){
-        cprintf("removing\n");
         if(!remove_page(pte)){
           panic("remove page");
         }

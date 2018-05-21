@@ -7,7 +7,12 @@
 #define MEM_SIZE 10000
 #define SZ 1200
 
+#define PRINT_TEST_START(TEST_NAME)   printf(2,"\n----------------------\nstarting test - %s\n----------------------\n",TEST_NAME);
+#define PRINT_TEST_END(TEST_NAME)   printf(2,"\nfinished test - %s\n----------------------\n",TEST_NAME);
+
+
 void child_test(){
+    PRINT_TEST_START("child test");
     if(!fork()){
         int children[CHILD_NUM];
         int* arr[CHILD_NUM];
@@ -36,9 +41,11 @@ void child_test(){
     }else{
         wait();
     }
+    PRINT_TEST_END("child test");
 }
 
 void alloc_dealloc_test(){
+    PRINT_TEST_START("alloc dealloc test");
     printf(2,"alloc dealloc test\n");
     if(!fork()){
         int* arr = (int*)(sbrk(PGSIZE*20));
@@ -47,15 +54,21 @@ void alloc_dealloc_test(){
         printf(2,"dealloc complete\n");
         arr = (int*)(sbrk(PGSIZE*20));
         for(int i=0;i<PGSIZE*20/sizeof(int);++i){arr[i]=2;}
-        for(int i=0;i<PGSIZE*20/sizeof(int);++i){printf(2,"arr[%d]=%d\n",i,arr[i]);}
+        for(int i=0;i<PGSIZE*20/sizeof(int);++i){
+            if(i%PGSIZE==0){
+                printf(2,"arr[%d]=%d\n",i,arr[i]);
+            }
+        }
         sbrk(-PGSIZE*20);
         exit();
     }else{
         wait();
     }
+    PRINT_TEST_END("alloc dealloc test");
 }
 
 void advance_alloc_dealloc_test(){
+    PRINT_TEST_START("advanced alloc dealloc test");
     if(!fork()){
         int* arr = (int*)(sbrk(PGSIZE*20));
         for(int i=0;i<PGSIZE*20/sizeof(int);++i){arr[i]=0;}
@@ -99,10 +112,11 @@ void advance_alloc_dealloc_test(){
     }else{
         wait();
     }
+    PRINT_TEST_END("advanced alloc dealloc test");
 }
 
 void exec_test(){
-    printf(2,"exec test\n");
+    PRINT_TEST_START("exec test");
     if(!fork()){
         printf(2,"allocating pages\n");
         int* arr = (int*)(malloc(sizeof(int)*5*PGSIZE));
@@ -121,6 +135,7 @@ void exec_test(){
     }else{
         wait();
     }
+    PRINT_TEST_END("exec test");
 }
 
 void exec_test_child(){

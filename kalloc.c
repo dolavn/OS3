@@ -48,12 +48,10 @@ freerange(void *vstart, void *vend)
 {
   char *p;
   p = (char*)PGROUNDUP((uint)vstart);
-  //int num_freed = 0;
   for(; p + PGSIZE <= (char*)vend; p += PGSIZE){
     kfree(p);
-    //num_freed++;
   }
-  count_pages(kmem.freelist);
+  count_pages(end);
 }
 //PAGEBREAK: 21
 // Free the page of physical memory pointed at by v,

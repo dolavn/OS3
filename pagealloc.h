@@ -3,7 +3,7 @@ struct run {
 };
 
 void add_total_pages_num(int);
-void count_pages(struct run*);
+void count_pages(char*);
 
 void dec_free_pages();
 void inc_free_pages();
