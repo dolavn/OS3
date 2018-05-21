@@ -39,6 +39,7 @@ void child_test(){
 }
 
 void alloc_dealloc_test(){
+    printf(2,"alloc dealloc test\n");
     if(!fork()){
         int* arr = (int*)(sbrk(PGSIZE*20));
         for(int i=0;i<PGSIZE*20/sizeof(int);++i){arr[i]=0;}
@@ -102,16 +103,21 @@ void advance_alloc_dealloc_test(){
 
 void exec_test(){
     printf(2,"exec test\n");
-    printf(2,"allocating pages\n");
-    int* arr = (int*)(malloc(sizeof(int)*5*PGSIZE));
-    for(int i=0;i<5*PGSIZE;i=i+PGSIZE){
-      arr[i]=i/PGSIZE;
-    }
-    printf(2,"forking\n");
-    int pid = fork();
-    if(!pid){
-        char* argv[] = {"myMemTest","exectest",0};
-        exec(argv[0],argv);
+    if(!fork()){
+        printf(2,"allocating pages\n");
+        int* arr = (int*)(malloc(sizeof(int)*5*PGSIZE));
+        for(int i=0;i<5*PGSIZE;i=i+PGSIZE){
+        arr[i]=i/PGSIZE;
+        }
+        printf(2,"forking\n");
+        int pid = fork();
+        if(!pid){
+            char* argv[] = {"myMemTest","exectest",0};
+            exec(argv[0],argv);
+        }else{
+            wait();
+        }
+        exit();
     }else{
         wait();
     }
