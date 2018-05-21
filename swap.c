@@ -160,7 +160,6 @@ int swap_to_file(uint* page){
     p->pages[ind].prevp=-1;
     
   }
-  (*page) &= ~PTE_A;
 #endif
   return 1;
 }
@@ -252,12 +251,9 @@ int init_page_meta(struct proc* p){
 Adds a page to the page meta data
 */
 int add_page(struct proc* p,uint* page,char* va){
-#ifdef NONE
   p->num_of_pages++;
   p->phys_pages++;
-#else
-  p->num_of_pages++;
-  p->phys_pages++;
+#ifndef NONE
   if(p->ignorePaging){return 1;}
   int ind = find_free_slot();
   if(ind==-1){

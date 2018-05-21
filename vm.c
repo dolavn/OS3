@@ -226,12 +226,12 @@ void free_page(struct proc* p){
       cprintf("\n");
       panic("swap");
   }
-  pde_t* swap_page = (pde_t*)(p->pages[ind].pte);
+  pde_t* swap_page = (pde_t*)(p->pages[ind].pte); //pde entry of page to swap
   swap_to_file(swap_page);
-  uint pa = PTE_ADDR(*swap_page);
+  uint pa = PTE_ADDR(*swap_page); //physical address
   if(pa==0){panic("kfree");}
   char* v = P2V(pa);
-  kfree(v);
+  kfree(v); //frees the physical page
   lcr3(V2P(p->pgdir));
 }
 #endif
@@ -250,13 +250,13 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
   a = PGROUNDUP(oldsz);
   struct proc* p = myproc();
   for(; a < newsz; a += PGSIZE){
-    if(!p->ignorePaging && pgdir == p->pgdir){
 #ifndef NONE
-      if(p->phys_pages >= MAX_PHYS_PAGES){ //find page to swap
+    if(!p->ignorePaging && pgdir == p->pgdir){
+      if(p->phys_pages >= MAX_PHYS_PAGES){ //frees a page if exceeded physical limit
         free_page(p);
       }
-#endif
     }
+#endif
     mem = kalloc();
     if(mem == 0){
       cprintf("allocuvm out of memory\n");
@@ -273,13 +273,13 @@ allocuvm(pde_t *pgdir, uint oldsz, uint newsz)
     pte_t* pg_entry = walkpgdir(pgdir,(const char*)(a),0);
 #ifndef NONE
     int page_ind;
-    if((page_ind=find_page_ind(p,pg_entry))==-1){
-    if(!add_page(p,pg_entry,(char*)a)){
+    if((page_ind=find_page_ind(p,pg_entry))==-1){ 
+      if(!add_page(p,pg_entry,(char*)a)){ //tries to add page to page meta
         cprintf("process out of memory\n");
         p->killed=1;
         return oldsz;
-    }
-    }else{
+      }
+    }else{ //page already exists, shouldn't happen
       struct page_meta* page = &p->pages[page_ind];
       cprintf("pid:%d\n",p->pid);
       cprintf("pte:%p\nva:%p\noffset:%d\non_phys:%d\ntaken:%d\n",page->pte,page->va,page->offset,page->on_phys,page->taken);
@@ -311,7 +311,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       a = PGADDR(PDX(a) + 1, 0, 0) - PGSIZE;
       continue;
     }
-    if((*pte & PTE_P) != 0){
+    if((*pte & PTE_P) != 0){ //page not present
       pa = PTE_ADDR(*pte);
       if(pa == 0)
         panic("kfree");
@@ -324,7 +324,7 @@ deallocuvm(pde_t *pgdir, uint oldsz, uint newsz)
       }
       *pte = 0;
     }
-    if(!(*pte & PTE_P) && (*pte & PTE_PG)){
+    if(!(*pte & PTE_P) && (*pte & PTE_PG)){ //page on swap file
       if(pgdir == p->pgdir){
         if(!remove_page(pte)){
           panic("remove page");
@@ -387,9 +387,9 @@ copyuvm(pde_t *pgdir, uint sz)
       panic("copyuvm: page not present and not on disk");
     }
     #ifndef NONE
-    if(*pte & PTE_PG){
+    if(*pte & PTE_PG){ //original page on disk
       pte_t *npte;
-      if((npte = walkpgdir(d, (void*)i,1))==0){
+      if((npte = walkpgdir(d, (void*)i,1))==0){ //create entry for the copy of the page on new pagedir
         panic("copyuvm: can't create pte");
       }
       *npte = *pte;
@@ -484,8 +484,6 @@ void handle_pgflt(){
   char* addr = (char*)(rcr2());
   p->pgflt_count++;
   pte_t* page = walkpgdir(p->pgdir,addr,0);
-  //cprintf("addr:%p\n",(addr));
-  //cprintf("eip:%p\n",p->tf->eip);
   if((uint)addr>KERNBASE){
     panic("kernel memory not present");
   }
@@ -498,7 +496,7 @@ void handle_pgflt(){
     return;
   }
   uint page_start = PGROUNDDOWN((uint)(addr));
-  if(p->phys_pages==MAX_PHYS_PAGES){
+  if(p->phys_pages==MAX_PHYS_PAGES){ //must free page before bringing one from disk
     free_page(p);
   }
   char* mem = kalloc();
@@ -506,12 +504,12 @@ void handle_pgflt(){
     cprintf("mapping out of memory\n");
     return;
   }
-  if(mappages(p->pgdir,(char*)(page_start),PGSIZE,V2P(mem),PTE_W|PTE_U)<0){
+  if(mappages(p->pgdir,(char*)(page_start),PGSIZE,V2P(mem),PTE_W|PTE_U)<0){ //maps memory to allocated page
     cprintf("mapping out of memory (2)\n");
     kfree(mem);
     return;
   }
-  swap_from_file(page);
+  swap_from_file(page); //copies data from swap file to memory
 #endif
 }
 

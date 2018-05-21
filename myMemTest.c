@@ -78,7 +78,7 @@ void advance_alloc_dealloc_test(){
             printf(2,"dealloc complete\n");
             printf(2,"should cause segmentation fault\n");
             for(int i=0;i<PGSIZE*20/sizeof(int);++i){
-            arr[i]=1;
+              arr[i]=1;
             }
             printf(2,"test failed\n");
             exit();
@@ -121,7 +121,7 @@ void exec_test(){
         printf(2,"allocating pages\n");
         int* arr = (int*)(malloc(sizeof(int)*5*PGSIZE));
         for(int i=0;i<5*PGSIZE;i=i+PGSIZE){
-        arr[i]=i/PGSIZE;
+            arr[i]=i/PGSIZE;
         }
         printf(2,"forking\n");
         int pid = fork();
@@ -147,6 +147,29 @@ void exec_test_child(){
     printf(2,"child exiting\n");
 }
 
+void priority_test(){
+    PRINT_TEST_START("priority test");
+    if(!fork()){
+        int* arr = (int*)(malloc(sizeof(int)*PGSIZE*6));
+        for(int i=0;i<PGSIZE/sizeof(int);++i){
+            int accessed_index = i+((i%2==0)?0:i%(6*sizeof(int)))*(PGSIZE/sizeof(int));
+            arr[accessed_index]=1;
+            if(i%10==0){sleep(1);}
+        }
+        for(int i=0;i<6*sizeof(int);++i){
+            int sum=0;
+            for(int j=0;j<PGSIZE/sizeof(int);++j){
+                sum = sum + arr[i*PGSIZE/sizeof(int)+j];
+            }
+            printf(2,"sum %d = %d\n",i,sum);
+        }
+        exit();
+    }else{
+        wait();
+    }
+    PRINT_TEST_END("priority test");
+}
+
 int main(int argc, char** argv){
     if(argc>=1){
       if(strcmp(argv[1],"exectest")==0){
@@ -154,6 +177,7 @@ int main(int argc, char** argv){
         exit();
       }
     }
+    priority_test();
     exec_test();
     alloc_dealloc_test();
     advance_alloc_dealloc_test();
