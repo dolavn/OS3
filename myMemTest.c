@@ -170,6 +170,38 @@ void priority_test(){
     PRINT_TEST_END("priority test");
 }
 
+void fork_test(){
+    PRINT_TEST_START("fork test");
+    if(!fork()){
+        char* arr = (char*)(malloc(sizeof(char)*PGSIZE*24));
+        for(int i=PGSIZE*1;i<PGSIZE*2;++i){
+            arr[i]=1;
+        }
+        printf(2,"Creating first child\n");
+        if(!fork()){
+            for(int i=PGSIZE*1;i<PGSIZE*2;++i){
+                arr[i]=1;
+            }
+            exit();
+        }else{
+            wait();
+        }
+        printf(2,"Creating second child\n");
+        if(!fork()){
+            for(int i=PGSIZE*3;i<PGSIZE*4;++i){
+                arr[i]=1;
+            }
+            exit();
+        }else{
+            wait();
+        }
+        exit();
+    }else{
+        wait();
+    }
+    PRINT_TEST_END("fork test");
+}
+
 int main(int argc, char** argv){
     if(argc>=1){
       if(strcmp(argv[1],"exectest")==0){
@@ -177,6 +209,7 @@ int main(int argc, char** argv){
         exit();
       }
     }
+    fork_test();
     priority_test();
     exec_test();
     alloc_dealloc_test();
